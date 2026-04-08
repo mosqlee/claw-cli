@@ -145,22 +145,16 @@ install_claw_cli() {
     fi
 
     info "正在安装 openclaw-claw..."
-    if npm install -g openclaw-claw 2>&1; then
-        if command -v claw >/dev/null 2>&1; then
-            info "✅ claw-cli 安装成功！"
-            return
-        fi
+    if npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
+        info "✅ claw-cli 安装成功！"
+        return
     fi
 
-    # npm 权限不足时尝试 sudo
-    if [ $? -ne 0 ]; then
-        warn "npm 全局安装失败（可能权限不足），尝试 sudo..."
-        if sudo npm install -g openclaw-claw 2>&1; then
-            if command -v claw >/dev/null 2>&1; then
-                info "✅ claw-cli 安装成功！"
-                return
-            fi
-        fi
+    # npm 失败，尝试 sudo
+    warn "npm 全局安装失败（可能权限不足），尝试 sudo..."
+    if sudo npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
+        info "✅ claw-cli 安装成功！"
+        return
     fi
 
     warn "npm 安装失败，尝试从源码安装..."

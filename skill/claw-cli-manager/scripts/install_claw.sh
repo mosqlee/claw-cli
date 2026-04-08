@@ -31,23 +31,19 @@ info "npm: $(npm -v) ✅"
 
 # npm 全局安装（优先）
 info "尝试 npm 全局安装..."
-if npm install -g openclaw-claw 2>/dev/null; then
-    if command -v claw >/dev/null 2>&1; then
-        info "✅ claw-cli 安装成功！"
-        claw --version
-        info "运行 'claw doctor' 检查环境"
-        exit 0
-    fi
+if npm install -g openclaw-claw 2>/dev/null && command -v claw >/dev/null 2>&1; then
+    info "✅ claw-cli 安装成功！"
+    claw --version
+    info "运行 'claw doctor' 检查环境"
+    exit 0
 fi
 
 warn "npm 全局安装失败（可能权限不足），尝试 sudo..."
-if sudo npm install -g openclaw-claw 2>/dev/null; then
-    if command -v claw >/dev/null 2>&1; then
-        info "✅ claw-cli 安装成功！"
-        claw --version
-        info "运行 'claw doctor' 检查环境"
-        exit 0
-    fi
+if sudo npm install -g openclaw-claw 2>/dev/null && command -v claw >/dev/null 2>&1; then
+    info "✅ claw-cli 安装成功！"
+    claw --version
+    info "运行 'claw doctor' 检查环境"
+    exit 0
 fi
 
 warn "npm 全局安装失败，从源码安装..."
