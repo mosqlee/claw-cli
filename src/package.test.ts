@@ -49,6 +49,10 @@ vi.mock('./utils.js', () => ({
   isPathVar: mockUtils.isPathVar,
   suggestDefault: mockUtils.suggestDefault,
   parsePkgRef: mockUtils.parsePkgRef,
+  OPENCLAW_DIR: '/home/.openclaw',
+  OPENCLAW_CONFIG: '/home/.openclaw/openclaw.json',
+  OPENCLAW_AGENTS_DIR: '/home/.openclaw/agents',
+  OPENCLAW_SKILLS_DIR: '/home/.openclaw/workspace/skills',
 }));
 
 vi.mock('./registry.js', () => ({
@@ -106,8 +110,8 @@ describe('install', () => {
     expect(mockUtils.parsePkgRef).toHaveBeenCalledWith('my-skill@1.0.0');
     expect(mockFetch).toHaveBeenCalledWith('my-skill', '1.0.0');
     expect(mockUtils.ensureDir).toHaveBeenCalledWith('/home/.claw_store/packages/skill__my-skill');
-    // Copies each entry from registry to installed
-    expect(mockFs.copy).toHaveBeenCalledTimes(2);
+    // Copies each entry from registry to installed + deploy to OpenClaw
+    expect(mockFs.copy).toHaveBeenCalled();
     expect(result).toEqual(meta);
   });
 
@@ -128,8 +132,9 @@ describe('install', () => {
     const meta = { name: 'my-agent', version: '2.0.0', type: 'skill' as const };
     mockFetch.mockResolvedValue(meta);
 
-    // regDir does not exist, .env.example does not exist
+    // regDir does not exist, .env.example does not exist, OPENCLAW_CONFIG does not exist
     mockFs.pathExists
+      .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false)
       .mockResolvedValueOnce(false);
 
@@ -153,7 +158,6 @@ describe('install', () => {
     await install('bare-skill');
 
     expect(mockFs.readdir).not.toHaveBeenCalled();
-    expect(mockFs.copy).not.toHaveBeenCalled();
   });
 
   it('runs interactive env setup when .env.example exists with new vars', async () => {
@@ -195,20 +199,23 @@ describe('install', () => {
 // ═══════════════════════════════════════════
 describe('uninstall', () => {
   it('removes skill directory when found', async () => {
-    mockFs.pathExists.mockResolvedValueOnce(true);
+    mockFs.pathExists
+      .mockResolvedValueOnce(true)   // skill dir exists
+      .mockResolvedValueOnce(false); // OPENCLAW_SKILLS_DIR/my-skill does not exist
 
     await uninstall('my-skill');
 
     expect(mockFs.pathExists).toHaveBeenCalledWith('/home/.claw_store/packages/skill__my-skill');
     expect(mockFs.remove).toHaveBeenCalledWith('/home/.claw_store/packages/skill__my-skill');
-    // Should not check agent since skill was found
-    expect(mockFs.pathExists).toHaveBeenCalledTimes(1);
+    expect(mockFs.pathExists).toHaveBeenCalledTimes(2);
   });
 
   it('removes agent directory when skill directory not found', async () => {
     mockFs.pathExists
       .mockResolvedValueOnce(false)  // skill dir not found
-      .mockResolvedValueOnce(true);  // agent dir found
+      .mockResolvedValueOnce(true)   // agent dir found
+      .mockResolvedValueOnce(false)  // OPENCLAW_AGENTS_DIR/my-agent does not exist
+      .mockResolvedValueOnce(false); // OPENCLAW_CONFIG does not exist
 
     await uninstall('my-agent');
 
@@ -390,7 +397,8 @@ describe('agentInstall', () => {
 
     mockFs.pathExists
       .mockResolvedValueOnce(false)  // regDir
-      .mockResolvedValueOnce(false); // .env.example
+      .mockResolvedValueOnce(false)  // .env.example (checkEnvSetup)
+      .mockResolvedValueOnce(false); // OPENCLAW_CONFIG (updateOpenClawConfig)
 
     const result = await agentInstall('my-agent', '/project');
 

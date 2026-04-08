@@ -8,6 +8,10 @@ import crypto from 'crypto';
 export const REGISTRY_DIR = path.join(os.homedir(), '.claw_store', 'registry');
 export const PACKAGES_DIR = path.join(os.homedir(), '.claw_store', 'packages');
 export const CONFIG_FILE = path.join(os.homedir(), '.claw_store', 'config.json');
+export const OPENCLAW_DIR = path.join(os.homedir(), '.openclaw');
+export const OPENCLAW_CONFIG = path.join(OPENCLAW_DIR, 'openclaw.json');
+export const OPENCLAW_AGENTS_DIR = path.join(OPENCLAW_DIR, 'agents');
+export const OPENCLAW_SKILLS_DIR = path.join(OPENCLAW_DIR, 'workspace', 'skills');
 export const DEFAULT_CONFIG = {
   registry: 'git@github.com:mosqlee/claw-registry.git',
   skillsRepo: 'https://github.com/mosqlee/claw-registry.git',

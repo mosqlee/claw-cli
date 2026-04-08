@@ -284,15 +284,22 @@ export async function syncRegistry(): Promise<void> {
   const config = await _deps.getConfig();
   const registryUrl = config.registry || config.skillsRepo;
 
-  for (const subdir of ['skills', 'agents', 'scenes']) {
+  // Remote uses plural, local uses singular
+  const remoteToLocal: Record<string, string> = {
+    'skills': 'skill',
+    'agents': 'agent',
+    'scenes': 'scene',
+  };
+
+  for (const [remoteSubdir, localSubdir] of Object.entries(remoteToLocal)) {
     const tmpDir = path.join(_deps.tmpdir(), `claw-sync-${Date.now()}`);
     try {
       await _deps.ensureDir(tmpDir);
       _deps.execSync(`git clone --depth 1 --filter=blob:none --sparse ${registryUrl} ${tmpDir}/repo 2>/dev/null`, { timeout: 60000 });
-      _deps.execSync(`cd ${tmpDir}/repo && git sparse-checkout set ${subdir} 2>/dev/null`, { timeout: 15000 });
+      _deps.execSync(`cd ${tmpDir}/repo && git sparse-checkout set ${remoteSubdir} 2>/dev/null`, { timeout: 15000 });
 
-      const src = path.join(tmpDir, 'repo', subdir);
-      const dst = path.join(_deps.registryDir(), subdir);
+      const src = path.join(tmpDir, 'repo', remoteSubdir);
+      const dst = path.join(_deps.registryDir(), localSubdir);
       if (await _deps.pathExists(src)) {
         await _deps.ensureDir_(dst);
         await _deps.copy(src, dst, { overwrite: true });

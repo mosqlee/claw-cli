@@ -1,8 +1,18 @@
 #!/usr/bin/env node
 // Claw CLI - Package Manager for OpenClaw Skills & Agents
 
+import fs from 'fs-extra';
+import path from 'path';
 import { Command } from 'commander';
-import { publish, fetch_, search, searchRemote } from './registry.js';
+import { fileURLToPath } from 'url';
+
+// Read version from package.json
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkgPath = path.join(__dirname, '..', 'package.json');
+const pkgJson = await fs.readJson(pkgPath);
+const CLI_VERSION = pkgJson.version;
+
+import { publish, fetch_, search, searchRemote, syncRegistry } from './registry.js';
 import { install, uninstall, listInstalled, verify, agentInstall, agentSoul } from './package.js';
 import { pack, installPack } from './packer.js';
 import { init as sceneInit, add as sceneAdd, remove as sceneRemove, installScene, list as sceneList, validate as sceneValidate } from './scene.js';
@@ -14,7 +24,7 @@ const program = new Command();
 program
   .name('claw')
   .description('Package Manager for OpenClaw Skills & Agents')
-  .version('1.0.0');
+  .version(CLI_VERSION);
 
 // ─── Publish ───
 program
@@ -326,7 +336,7 @@ program
     console.log('📋 Environment Check');
     console.log();
     console.log('  ✅ Node.js', process.version);
-    console.log('  ✅ claw-cli 1.0.0');
+    console.log('  ✅ claw-cli', CLI_VERSION);
   });
 
 // ─── Install Pack ───
