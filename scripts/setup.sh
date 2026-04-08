@@ -146,18 +146,42 @@ install_claw_cli() {
 
     info "正在安装 openclaw-claw..."
 
-    # 检测 npm 全局目录写权限
-    local npm_global="$(npm prefix -g)"
-    local use_sudo=""
-    if [ ! -w "$npm_global" ]; then
-        use_sudo="sudo"
-        info "检测到需要管理员权限（$npm_global）"
-    fi
-
-    if $use_sudo npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
+    # 尝试直接安装
+    if npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
         info "✅ claw-cli 安装成功！"
         return
     fi
+
+    # 权限不足时，配置用户级全局目录（不需要 sudo）
+    local npm_global="$(npm prefix -g 2>/dev/null)"
+    if [ ! -w "$npm_global" ]; then
+        warn "npm 全局目录 ($npm_global) 无写权限"
+        info "配置用户级 npm 全局目录..."
+        mkdir -p "$HOME/.npm-global"
+        npm config set prefix "$HOME/.npm-global"
+        export PATH="$HOME/.npm-global/bin:$PATH"
+
+        # 持久化 PATH
+        case "$CURRENT_SHELL" in
+            zsh) [ -f "$HOME/.zshrc" ] && echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zshrc" ;;
+            bash) [ -f "$HOME/.bashrc" ] && echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.bashrc" ;;
+            fish) mkdir -p "$HOME/.config/fish"; [ -f "$HOME/.config/fish/config.fish" ] && echo 'set -gx PATH $HOME/.npm-global/bin $PATH' >> "$HOME/.config/fish/config.fish" ;;
+        esac
+
+        if npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
+            info "✅ claw-cli 安装成功！（已配置用户级全局目录 ~/.npm-global）"
+            return
+        fi
+    fi
+
+    # 最后尝试 sudo
+    warn "安装失败，最后尝试 sudo..."
+    if sudo npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
+        info "✅ claw-cli 安装成功！"
+        return
+    fi
+
+    error "所有安装方式均失败，请手动执行: npm install -g openclaw-claw"
 
     warn "npm 安装失败，尝试从源码安装..."
     local tmp_dir=$(mktemp -d)
