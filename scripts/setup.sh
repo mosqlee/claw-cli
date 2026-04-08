@@ -19,14 +19,14 @@ header() { echo -e "\n${BOLD}${CYAN}━━━ $1 ━━━${NC}"; }
 
 # 获取用户输入
 ask() {
-    local desc="$1" default_val="${2:-}"
+    local desc="$1" default_val="$2"
     if [ -n "$default_val" ]; then
-        printf "${CYAN}%s${NC} [${DIM}%s${DIM}]: " "$desc" "$default_val"
+        printf "\n${CYAN}%s${NC} [${DIM}%s${DIM}]: " "$desc" "$default_val" >&2
     else
-        printf "${CYAN}%s${NC}: " "$desc"
+        printf "\n${CYAN}%s${NC}: " "$desc" >&2
     fi
     local ans
-    read -r ans
+    read -r ans </dev/tty
     echo "${ans:-$default_val}"
 }
 
@@ -233,7 +233,7 @@ configure_registry() {
 
     # 校验 URL
     validate_git_url "$REGISTRY_URL" || {
-        REGISTRY_URL=$(ask "请输入有效的 Git 地址（git@ 或 https://）" "")
+        REGISTRY_URL=$(ask "请输入有效的 Git 地址（git@ 或 https://）")
         validate_git_url "$REGISTRY_URL" || error "无效的 Git URL"
     }
 
