@@ -183,37 +183,77 @@ npm run dev
 npm run lint
 ```
 
+## 交互式安装向导
+
+推荐新用户使用交互式安装脚本，一键完成所有配置：
+
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/mosqlee/claw-cli/main/scripts/setup.sh)
+```
+
+或本地执行：
+
+```bash
+git clone https://github.com/mosqlee/claw-cli.git
+cd claw-cli
+bash scripts/setup.sh
+```
+
+安装向导会依次引导你完成：
+
+1. **环境检查** — 检测 Node.js (>=18)、npm、Git、jq
+2. **安装 claw-cli** — npm 全局安装（失败自动回退源码安装）
+3. **配置 Registry** — 输入私有仓库地址（支持 git@ 和 https://）
+4. **拉取 Registry** — 从远程拉取 skills/agents/scenes 列表
+5. **选择安装内容** — 场景（多选/跳过）→ Agent（多选/跳过）→ Skill（多选/跳过）
+6. **环境变量配置** — 收集所有已安装包的 env 需求，引导填写
+
+### 前置要求
+
+- Node.js >= 18
+- npm
+- Git
+- **jq** — JSON 解析（`brew install jq`）
+- Registry 的 SSH key 或访问权限
+
+### 手动安装
+
+如果不想用交互式向导，也可以手动安装：
+
+```bash
+npm install -g openclaw-claw
+claw config set registry git@github.com:mosqlee/claw-registry.git
+claw doctor
+claw search stock
+claw install findata-toolkit
+```
+
 ## claw-cli-manager Skill
 
 本项目附带一个 OpenClaw Skill（`skill/claw-cli-manager/`），让你的 AI 助手能够自动使用 claw-cli 管理包。
 
 ### 安装 Skill
 
-将 `skill/claw-cli-manager/` 目录复制到你的 OpenClaw skills 目录：
-
 ```bash
 cp -r skill/claw-cli-manager ~/.openclaw/workspace/skills/
 ```
 
-然后重启 OpenClaw，AI 助手就能识别以下触发词：
+然后重启 OpenClaw。AI 助手支持的触发词：
 
-- 「安装 xxx skill」→ 自动搜索并安装
-- 「发布我的 skill」→ 引导发布流程
-- 「装个交易员套件」→ 一键部署场景
-- 「列出已安装的 skill」→ 查看已安装包
+| 用户说 | AI 执行 |
+|--------|---------|
+| 「初始化 claw-cli」「setup claw」 | 执行 `setup.sh` 交互式向导 |
+| 「帮我装xxx skill」 | `claw search xxx` → 展示结果 → `claw install <name>` |
+| 「搜索xxx相关的skill」 | `claw search xxx` → 格式化展示 |
+| 「发布我的skill」 | 引导到 skill 目录 → `claw publish <dir>` |
+| 「装个交易员套件」 | 执行 `setup_scene.sh` 拉取场景列表 |
+| 「有哪些角色套件」 | 执行 `setup_scene.sh` 拉取并展示 |
+| 「列出已安装的skill」 | `claw list` → 格式化展示 |
+| 「claw doctor」 | 直接执行 → 根据结果建议修复 |
 
-### Skill 功能
+### 场景套件
 
-| 功能 | 说明 |
-|------|------|
-| 🛠️ 一键安装 | 自动检测环境，npm 优先安装 claw-cli |
-| 🔍 智能搜索 | 用户自然语言 → claw 命令映射 |
-| 📤 发布引导 | 检查格式、扫描敏感信息、发布到 registry |
-| 🎭 场景编排 | 6 个预设角色套件，一键部署 |
-
-### 预设角色套件
-
-场景配置存储在 Registry 的 `scenes/` 目录下，运行 `setup_scene.sh` 时自动拉取。团队成员可以通过向 Registry 提交 JSON 文件来添加新场景。
+场景配置存储在 Registry 的 `scenes/` 目录下，运行脚本时自动拉取。任何团队成员可以向 Registry 提交 JSON 文件来添加新场景。
 
 场景 JSON 格式：
 
@@ -237,33 +277,29 @@ bash ~/.openclaw/workspace/skills/claw-cli-manager/scripts/setup_scene.sh
 bash ~/.openclaw/workspace/skills/claw-cli-manager/scripts/setup_scene.sh trader
 ```
 
-### 添加新场景
-
-在 Registry 的 `scenes/` 目录下新建 JSON 文件即可，格式同上。
-
 ### 项目结构
 
 ```
 claw-cli/
+├── scripts/
+│   └── setup.sh              # 交互式安装向导（新用户推荐）
 ├── src/
-│   ├── cli.ts          # CLI 入口（commander 命令定义）
-│   ├── registry.ts     # Registry 管理（publish/fetch/search）
-│   ├── package.ts      # 安装/卸载/验证/Agent 管理
-│   ├── packer.ts       # 离线打包/解包
-│   ├── utils.ts        # 工具函数（路径、哈希、解析等）
-│   ├── types.ts        # TypeScript 类型定义
-│   └── index.ts        # 模块导出
+│   ├── cli.ts                # CLI 入口
+│   ├── registry.ts           # Registry 管理
+│   ├── package.ts            # 安装/卸载/验证
+│   ├── packer.ts             # 离线打包/解包
+│   ├── config.ts             # 配置管理
+│   ├── scene.ts              # 场景管理
+│   ├── utils.ts              # 工具函数
+│   └── types.ts              # TypeScript 类型
 ├── skill/
-│   └── claw-cli-manager/  # OpenClaw Skill
-│       ├── SKILL.md        # Skill 定义
+│   └── claw-cli-manager/     # OpenClaw Skill
+│       ├── SKILL.md          # Skill 定义（AI 触发词 + 命令映射）
 │       └── scripts/
-│           ├── install_claw.sh
-│           ├── setup_scene.sh
-│           └── scene_configs/
+│           ├── install_claw.sh   # 一键安装 claw-cli
+│           └── setup_scene.sh   # 场景安装
 ├── test/
-│   └── utils.test.ts   # 单元测试
-├── Dockerfile          # Docker 黑盒测试
-├── test-blackbox.sh    # 黑盒测试脚本
+│   └── utils.test.ts
 ├── package.json
 └── tsconfig.json
 ```
