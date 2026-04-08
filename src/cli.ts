@@ -2,7 +2,7 @@
 // Claw CLI - Package Manager for OpenClaw Skills & Agents
 
 import { Command } from 'commander';
-import { publish, fetch_, search } from './registry.js';
+import { publish, fetch_, search, searchRemote } from './registry.js';
 import { install, uninstall, listInstalled, verify, agentInstall, agentSoul } from './package.js';
 import { pack, installPack } from './packer.js';
 import { init as sceneInit, add as sceneAdd, remove as sceneRemove, installScene, list as sceneList, validate as sceneValidate } from './scene.js';
@@ -35,12 +35,14 @@ program
 // ─── Search ───
 program
   .command('search [query]')
-  .description('Search for packages in registry')
-  .action(async (query) => {
+  .description('Search for packages in local registry and remote repos')
+  .option('--local', 'Only search local registry')
+  .action(async (query, options) => {
     try {
-      const results = await search(query || '');
+      const results = options.local ? await search(query || '') : await searchRemote(query || '');
       for (const r of results) {
-        console.log(`  📦 ${r.name}@${r.version} [${r.scope}] ${r.description || ''}`);
+        const remote = (r as any).source === 'remote' ? ' 🌐' : '';
+        console.log(`  📦 ${r.name}@${r.version} [${r.scope}] ${r.description || ''}${remote}`);
       }
       if (results.length === 0) {
         console.log('No packages found.');

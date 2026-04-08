@@ -34,6 +34,7 @@ export interface SearchResult {
   version: string;
   scope: 'skill' | 'agent';
   description?: string;
+  source?: 'local' | 'remote';
 }
 
 export interface ResolvedPackage {

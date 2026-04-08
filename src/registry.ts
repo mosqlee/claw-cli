@@ -2,11 +2,14 @@
 
 import fs from 'fs-extra';
 import path from 'path';
+import os from 'os';
 import { PackageMeta, SearchResult } from './types.js';
 import {
   REGISTRY_DIR, pkgDir, ensureDir, readJson, writeJson, detectEnvVars,
   isSensitiveFilename, shouldExclude, scanSensitiveInfo, replaceSensitiveInfo, detectLang,
+  DEFAULT_CONFIG,
 } from './utils.js';
+import { getConfig } from './config.js';
 
 export async function publish(sourceDir: string, scope?: 'skill' | 'agent'): Promise<PackageMeta | null> {
   const pkgPath = path.join(sourceDir, 'package.json');
@@ -173,4 +176,81 @@ export async function search(query: string): Promise<SearchResult[]> {
 
 export async function listRegistry(): Promise<SearchResult[]> {
   return search('');
+}
+
+// --- Remote search via GitHub API ---
+
+async function fetchRemotePackages(repoUrl: string, subdir: string, query: string): Promise<SearchResult[]> {
+  const results: SearchResult[] = [];
+  const queryLower = query.toLowerCase();
+
+  try {
+    // Parse GitHub repo URL to API path
+    const match = repoUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+    if (!match) return results;
+
+    const [, owner, repo] = match;
+    // Try to use gh CLI first (authenticated), fallback to public API
+    let treeData: Array<{ path: string; type: string }> = [];
+
+    // Use git sparse checkout to get remote package metadata
+    const { execSync } = await import('child_process');
+    const tmpDir = path.join(os.tmpdir(), `claw-remote-${Date.now()}`);
+
+    await fs.ensureDir(tmpDir);
+    try {
+      execSync(`git clone --depth 1 --filter=blob:none --sparse ${repoUrl} ${tmpDir} 2>/dev/null`, { timeout: 30000 });
+      execSync(`cd ${tmpDir} && git sparse-checkout set ${subdir} 2>/dev/null`, { timeout: 15000 });
+
+      // Find all package.json files in the subdir
+      const scopeDir = path.join(tmpDir, subdir);
+      if (!(await fs.pathExists(scopeDir))) return results;
+
+      const entries = await fs.readdir(scopeDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+        if (query && !entry.name.toLowerCase().includes(queryLower)) continue;
+
+        const pkgPath = path.join(scopeDir, entry.name, 'package.json');
+        const data = await readJson<Record<string, unknown>>(pkgPath);
+        if (data) {
+          const scope = subdir === 'agent' ? 'agent' as const : 'skill' as const;
+          results.push({
+            name: data.name as string || entry.name,
+            version: (data.version as string) || '1.0.0',
+            scope,
+            description: data.description as string,
+            source: 'remote',
+          });
+        }
+      }
+    } finally {
+      await fs.remove(tmpDir);
+    }
+  } catch {
+    // Silently fail on network errors
+  }
+
+  return results;
+}
+
+/** Search both local registry and remote repos. */
+export async function searchRemote(query: string): Promise<SearchResult[]> {
+  const config = await getConfig();
+  const [localResults, ...remoteResults] = await Promise.all([
+    search(query),
+    fetchRemotePackages(config.skillsRepo, 'skill', query),
+    fetchRemotePackages(config.agentsRepo, 'agent', query),
+  ]);
+
+  // Merge: remote items not already in local get marked
+  const localNames = new Set(localResults.map(r => r.name));
+  for (const remote of remoteResults.flat()) {
+    if (!localNames.has(remote.name)) {
+      (remote as SearchResult & { source?: string }).source = 'remote';
+      localResults.push(remote);
+    }
+  }
+
+  return localResults;
 }
