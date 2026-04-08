@@ -206,7 +206,7 @@ install_claw_cli() {
         rm -rf "$tmp_dir"
         error "源码克隆失败，请检查网络"
     }
-    (cd "$tmp_dir/claw-cli" && npm install --production 2>&1 && npx tsc 2>&1) || {
+    (cd "$tmp_dir/claw-cli" && npm install 2>&1 && npx tsc 2>&1) || {
         rm -rf "$tmp_dir"
         error "源码构建失败"
     }
@@ -226,7 +226,7 @@ install_claw_cli() {
         rm -rf "$tmp_dir"
         error "源码克隆失败，请检查网络"
     }
-    (cd "$tmp_dir/claw-cli" && npm install --production 2>&1 && npx tsc 2>&1) || {
+    (cd "$tmp_dir/claw-cli" && npm install 2>&1 && npx tsc 2>&1) || {
         rm -rf "$tmp_dir"
         error "源码构建失败"
     }
