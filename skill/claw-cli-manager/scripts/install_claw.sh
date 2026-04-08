@@ -1,12 +1,9 @@
 #!/bin/bash
 # install_claw.sh - 一键安装 claw-cli
-# 用途：当 npm install -g 不可用时的备选安装方式
+# 兼容 bash 3.2+ (macOS)
 
 set -e
 
-CLAW_VERSION="1.0.0"
-INSTALL_DIR="$HOME/.claw-cli"
-BIN_DIR="$HOME/.local/bin"
 REPO_URL="https://github.com/mosqlee/claw-cli.git"
 
 RED='\033[0;31m'
@@ -18,12 +15,12 @@ info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
 
-# Step 1: 环境检测
+# 环境检测
 info "检查运行环境..."
 
 command -v node >/dev/null 2>&1 || error "需要 Node.js >= 18，请先安装: https://nodejs.org/"
-NODE_VERSION=$(node -v | sed 's/v//' | cut -d. -f1)
-[ "$NODE_VERSION" -lt 18 ] && error "Node.js 版本过低 (当前: $(node -v), 需要: >= 18)"
+NODE_MAJOR=$(node -v | sed 's/v//' | cut -d. -f1)
+[ "$NODE_MAJOR" -lt 18 ] && error "Node.js 版本过低 (当前: $(node -v), 需要: >= 18)"
 
 command -v git >/dev/null 2>&1 || error "需要 Git，请先安装"
 command -v npm >/dev/null 2>&1 || error "需要 npm"
@@ -32,50 +29,59 @@ info "Node.js: $(node -v) ✅"
 info "Git: $(git --version) ✅"
 info "npm: $(npm -v) ✅"
 
-# Step 2: 尝试 npm 全局安装（优先）
+# npm 全局安装（优先）
 info "尝试 npm 全局安装..."
 if npm install -g openclaw-claw 2>/dev/null; then
-    command -v claw >/dev/null 2>&1 && {
+    if command -v claw >/dev/null 2>&1; then
         info "✅ claw-cli 安装成功！"
         claw --version
         info "运行 'claw doctor' 检查环境"
         exit 0
-    }
-    warn "npm 安装成功但 claw 命令不可用，尝试从源码安装..."
-else
-    warn "npm 全局安装失败，从源码安装..."
+    fi
 fi
 
-# Step 3: 从源码安装（备选）
-info "从源码安装 claw-cli..."
+warn "npm 全局安装失败，从源码安装..."
+
+# 从源码安装
+INSTALL_DIR="$HOME/.claw-cli"
+BIN_DIR="$HOME/.local/bin"
 
 if [ -d "$INSTALL_DIR" ]; then
     info "更新现有安装..."
-    cd "$INSTALL_DIR"
-    git pull --ff-only 2>/dev/null || warn "Git pull 失败，使用现有版本"
+    (cd "$INSTALL_DIR" && git pull --ff-only 2>/dev/null) || warn "Git pull 失败，使用现有版本"
 else
     info "克隆源码到 $INSTALL_DIR..."
     git clone --depth 1 "$REPO_URL" "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
 fi
 
-npm install --production
-npm run build
+(cd "$INSTALL_DIR" && npm install --production 2>&1 && npx tsc 2>&1) || error "构建失败"
 
-# Step 4: 创建符号链接
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/dist/cli.js" "$BIN_DIR/claw"
+chmod +x "$BIN_DIR/claw"
 
-# Step 5: 加入 PATH
+# 检测 shell 并加入 PATH
+CURRENT_SHELL=""
+[ -n "$ZSH_VERSION" ] && CURRENT_SHELL="zsh"
+[ -n "$BASH_VERSION" ] && CURRENT_SHELL="bash"
+
 if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
-    echo '' >> "$HOME/.zshrc"
-    echo '# claw-cli' >> "$HOME/.zshrc"
-    echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$HOME/.zshrc"
+    case "$CURRENT_SHELL" in
+        zsh)
+            [ -f "$HOME/.zshrc" ] && echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$HOME/.zshrc"
+            ;;
+        bash)
+            [ -f "$HOME/.bashrc" ] && echo "export PATH=\"\$PATH:$BIN_DIR\"" >> "$HOME/.bashrc"
+            ;;
+        fish)
+            mkdir -p "$HOME/.config/fish"
+            [ -f "$HOME/.config/fish/config.fish" ] && echo "set -gx PATH \$PATH $BIN_DIR" >> "$HOME/.config/fish/config.fish"
+            ;;
+    esac
     export PATH="$PATH:$BIN_DIR"
-    info "已将 $BIN_DIR 加入 PATH（需要重新打开终端或执行 source ~/.zshrc）"
+    warn "已将 $BIN_DIR 加入 PATH（重启终端生效）"
 fi
 
-# Step 6: 验证
 if command -v claw >/dev/null 2>&1; then
     info "✅ claw-cli 安装成功！"
     claw --version
@@ -84,5 +90,5 @@ if command -v claw >/dev/null 2>&1; then
     info "  1. 运行 'claw doctor' 检查环境"
     info "  2. 运行 'claw config set registry <git-repo-url>' 配置私有仓库"
 else
-    error "安装完成但 claw 命令不可用，请手动执行: export PATH=\"\$PATH:$BIN_DIR\""
+    error "安装完成但 claw 命令不可用，请执行: export PATH=\"\$PATH:$BIN_DIR\""
 fi

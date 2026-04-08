@@ -1,12 +1,13 @@
 #!/bin/bash
 # setup_scene.sh - 从 Registry 拉取场景配置并一键安装
-# 场景配置存储在 registry 的 scenes/ 目录下，动态拉取
+# 兼容 bash 3.2+ (macOS), 使用 jq 解析 JSON
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CLAW_STORE="$HOME/.claw_store"
 SCENE_CACHE="$CLAW_STORE/remote-scenes"
+CONFIG_FILE="$CLAW_STORE/config.json"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -18,15 +19,12 @@ info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
-# 读取 registry 配置
 get_registry_url() {
-    local config_file="$CLAW_STORE/config.json"
-    if [ -f "$config_file" ]; then
-        python3 -c "import json; c=json.load(open('$config_file')); print(c.get('registry', c.get('scenesRepo', '')))" 2>/dev/null
+    if [ -f "$CONFIG_FILE" ] && command -v jq >/dev/null 2>&1; then
+        jq -r '.registry // .scenesRepo // empty' "$CONFIG_FILE" 2>/dev/null
     fi
 }
 
-# 从 registry 拉取 scenes 目录
 fetch_scenes() {
     local registry_url="$1"
     mkdir -p "$SCENE_CACHE"
@@ -34,36 +32,33 @@ fetch_scenes() {
     info "从 Registry 拉取场景配置..."
     local tmp_dir=$(mktemp -d)
 
-    # sparse clone 只拉 scenes 目录
-    if git clone --depth 1 --filter=blob:none --sparse "$registry_url" "$tmp_dir" 2>/dev/null; then
-        cd "$tmp_dir"
-        git sparse-checkout set scenes 2>/dev/null
+    if git clone --depth 1 --filter=blob:none --sparse "$registry_url" "$tmp_dir/claw-registry" 2>/dev/null; then
+        (cd "$tmp_dir/claw-registry" && git sparse-checkout set scenes 2>/dev/null) || true
 
-        if [ -d "scenes" ]; then
-            # 同步到本地缓存
+        if [ -d "$tmp_dir/claw-registry/scenes" ]; then
             rm -rf "${SCENE_CACHE:?}/"*
-            cp -r scenes/* "$SCENE_CACHE/" 2>/dev/null
-            local count=$(find "$SCENE_CACHE" -name "*.json" -maxdepth 1 | wc -l | tr -d ' ')
+            cp -r "$tmp_dir/claw-registry/scenes/"* "$SCENE_CACHE/" 2>/dev/null || true
+            local count=$(find "$SCENE_CACHE" -name "*.json" -maxdepth 1 2>/dev/null | wc -l | tr -d ' ')
             info "同步完成，发现 $count 个场景配置"
         else
             warn "Registry 中暂无 scenes 目录"
         fi
     else
+        rm -rf "$tmp_dir"
         error "无法连接 Registry ($registry_url)，请检查网络或权限"
     fi
 
     rm -rf "$tmp_dir"
-    cd - >/dev/null
 }
 
-# 列出可用场景
 list_scenes() {
-    local configs=()
+    local configs=""
     for f in "$SCENE_CACHE"/*.json; do
-        [ -f "$f" ] && configs+=("$f")
+        [ -f "$f" ] && configs="$configs $(basename "$f" .json)"
     done
+    configs=$(echo "$configs" | xargs)
 
-    if [ ${#configs[@]} -eq 0 ]; then
+    if [ -z "$configs" ]; then
         warn "暂无可用场景配置"
         echo ""
         echo "你可以："
@@ -75,11 +70,10 @@ list_scenes() {
     echo -e "\n${CYAN}可用角色套件：${NC}"
     echo "─────────────────────────────────────"
     local i=1
-    for f in "${configs[@]}"; do
-        local name=$(basename "$f" .json)
-        local desc=$(python3 -c "import json; print(json.load(open('$f')).get('description',''))" 2>/dev/null || echo "")
-        local skills=$(python3 -c "import json; d=json.load(open('$f')); print(', '.join(d.get('skills',[])))" 2>/dev/null || echo "")
-        local agents=$(python3 -c "import json; d=json.load(open('$f')); print(', '.join(d.get('agents',[])))" 2>/dev/null || echo "")
+    for name in $configs; do
+        local desc=$(jq -r '.description // empty' "$SCENE_CACHE/${name}.json" 2>/dev/null || echo "")
+        local skills=$(jq -r '.skills // [] | join(", ")' "$SCENE_CACHE/${name}.json" 2>/dev/null || echo "")
+        local agents=$(jq -r '.agents // [] | join(", ")' "$SCENE_CACHE/${name}.json" 2>/dev/null || echo "")
 
         echo -e "  ${CYAN}$i)${NC} $name — $desc"
         [ -n "$skills" ] && echo -e "     Skills: $skills"
@@ -89,59 +83,45 @@ list_scenes() {
     echo "─────────────────────────────────────"
 }
 
-# 安装单个包
 install_pkg() {
     local pkg="$1"
     if claw list 2>/dev/null | grep -q "$pkg"; then
         warn "  $pkg 已安装，跳过"
     else
         info "  安装 $pkg..."
-        claw install "$pkg" 2>&1 | sed 's/^/  /'
-        if [ $? -eq 0 ]; then
-            info "  ✅ $pkg 安装成功"
-        else
-            error "  ❌ $pkg 安装失败"
-        fi
+        claw install "$pkg" 2>&1 | sed 's/^/  /' || warn "  ❌ $pkg 安装失败"
     fi
 }
 
-# 安装场景
 install_scene() {
     local config_file="$1"
     local name=$(basename "$config_file" .json)
     echo -e "\n${CYAN}🎬 Installing scene: $name${NC}"
 
-    local skills=$(python3 -c "import json; print('\n'.join(json.load(open('$config_file')).get('skills',[])))" 2>/dev/null)
-    local agents=$(python3 -c "import json; print('\n'.join(json.load(open('$config_file')).get('agents',[])))" 2>/dev/null)
+    local skills=$(jq -r '.skills // [] | join("\n")' "$config_file" 2>/dev/null || echo "")
+    local agents=$(jq -r '.agents // [] | join("\n")' "$config_file" 2>/dev/null || echo "")
 
     if [ -n "$skills" ]; then
         echo -e "\n📦 Skills:"
-        while IFS= read -r pkg; do
+        echo "$skills" | while read -r pkg; do
             [ -n "$pkg" ] && install_pkg "$pkg"
-        done <<< "$skills"
+        done
     fi
 
     if [ -n "$agents" ]; then
         echo -e "\n🤖 Agents:"
-        while IFS= read -r pkg; do
+        echo "$agents" | while read -r pkg; do
             [ -n "$pkg" ] && install_pkg "$pkg"
-        done <<< "$agents"
+        done
     fi
 
     # 处理 env 变量
-    local env_vars=$(python3 -c "
-import json
-cfg = json.load(open('$config_file'))
-env = cfg.get('env', {})
-for k, v in env.items():
-    print(f'{k}={v}')
-" 2>/dev/null)
-
+    local env_vars=$(jq -r '.env // {} | to_entries[] | "\(.key)=\(.value)"' "$config_file" 2>/dev/null || echo "")
     if [ -n "$env_vars" ]; then
         echo -e "\n🔧 环境变量："
-        while IFS='=' read -r k v; do
-            [ -n "$k" ] && info "  $k=$v (请确认已配置)"
-        done <<< "$env_vars"
+        echo "$env_vars" | while read -r line; do
+            [ -n "$line" ] && info "  $line (请确认已配置)"
+        done
     fi
 
     echo -e "\n${GREEN}✅ Scene '$name' 安装完成！${NC}"
@@ -151,14 +131,13 @@ for k, v in env.items():
 
 # ─── 主流程 ───
 
-# 前置检查
 command -v claw >/dev/null 2>&1 || {
     echo "claw-cli 未安装。"
-    read -p "是否现在安装？(y/n) " ans
+    local ans
+    read -rp "是否现在安装？(y/n) " ans
     [ "$ans" = "y" ] && bash "$SCRIPT_DIR/install_claw.sh" || exit 1
 }
 
-# 拉取场景
 registry_url=$(get_registry_url)
 if [ -z "$registry_url" ]; then
     error "未配置 Registry，请先执行: claw config set registry <git-repo-url>"
@@ -166,7 +145,7 @@ fi
 
 fetch_scenes "$registry_url"
 
-# 命令行直接指定场景
+# 直接指定场景
 if [ -n "$1" ]; then
     config_file="$SCENE_CACHE/${1}.json"
     if [ -f "$config_file" ]; then
@@ -181,19 +160,30 @@ fi
 while true; do
     list_scenes || exit 0
     echo ""
-    read -p "选择要安装的角色套件编号 (r 刷新, q 退出): " choice
+    local choice
+    read -rp "选择要安装的角色套件编号 (r 刷新, q 退出): " choice
 
     [ "$choice" = "q" ] && exit 0
     [ "$choice" = "r" ] && { fetch_scenes "$registry_url"; continue; }
 
-    local configs=()
+    local configs=""
     for f in "$SCENE_CACHE"/*.json; do
-        [ -f "$f" ] && configs+=("$f")
+        [ -f "$f" ] && configs="$configs $(basename "$f" .json)"
+    done
+    configs=$(echo "$configs" | xargs)
+
+    local found=""
+    local idx=0
+    for name in $configs; do
+        idx=$((idx + 1))
+        if [ "$idx" = "$choice" ]; then
+            found="$name"
+            break
+        fi
     done
 
-    idx=$((choice - 1))
-    if [ "$idx" -ge 0 ] && [ "$idx" -lt "${#configs[@]}" ]; then
-        install_scene "${configs[$idx]}"
+    if [ -n "$found" ]; then
+        install_scene "$SCENE_CACHE/${found}.json"
     else
         warn "无效选择"
     fi
