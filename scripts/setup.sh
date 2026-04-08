@@ -124,11 +124,16 @@ check_environment() {
         SKILLS_DIR=$(ask "请输入 Skills 安装目录" "$HOME/.openclaw/workspace/skills")
     fi
 
-    # 检测当前 shell
+    # 检测当前 shell（从父进程推断，而非脚本自身）
     CURRENT_SHELL=""
-    [ -n "$ZSH_VERSION" ] && CURRENT_SHELL="zsh"
-    [ -n "$BASH_VERSION" ] && CURRENT_SHELL="bash"
-    [ -z "$CURRENT_SHELL" ] && CURRENT_SHELL=$(basename "$SHELL" 2>/dev/null || echo "unknown")
+    local parent_proc="$(ps -o comm= -p $PPID 2>/dev/null || true)"
+    case "$parent_proc" in
+        *zsh|*Zsh)  CURRENT_SHELL="zsh" ;;
+        *bash|*Bash) CURRENT_SHELL="bash" ;;
+        *fish|*Fish) CURRENT_SHELL="fish" ;;
+    esac
+    # 回退到 $SHELL 环境变量
+    [ -z "$CURRENT_SHELL" ] && CURRENT_SHELL=$(basename "${SHELL:-unknown}" 2>/dev/null)
     info "当前 Shell: $CURRENT_SHELL"
 }
 
