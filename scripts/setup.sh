@@ -147,9 +147,19 @@ install_claw_cli() {
     info "正在安装 openclaw-claw..."
 
     # 尝试直接安装
-    if npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
-        info "✅ claw-cli 安装成功！"
-        return
+    if npm install -g openclaw-claw 2>&1; then
+        hash -r 2>/dev/null || true
+        if command -v claw >/dev/null 2>&1; then
+            info "✅ claw-cli 安装成功！"
+            return
+        fi
+        # npm install 成功但 claw 不在 PATH，手动定位
+        local npm_bin="$(npm bin -g 2>/dev/null || npm prefix -g 2>/dev/null)/bin"
+        if [ -x "$npm_bin/claw" ]; then
+            export PATH="$npm_bin:$PATH"
+            info "✅ claw-cli 安装成功！（已将 $npm_bin 加入 PATH）"
+            return
+        fi
     fi
 
     # 权限不足时，配置用户级全局目录（不需要 sudo）
@@ -168,17 +178,34 @@ install_claw_cli() {
             fish) mkdir -p "$HOME/.config/fish"; [ -f "$HOME/.config/fish/config.fish" ] && echo 'set -gx PATH $HOME/.npm-global/bin $PATH' >> "$HOME/.config/fish/config.fish" ;;
         esac
 
-        if npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
-            info "✅ claw-cli 安装成功！（已配置用户级全局目录 ~/.npm-global）"
-            return
+        if npm install -g openclaw-claw 2>&1; then
+            hash -r 2>/dev/null || true
+            if command -v claw >/dev/null 2>&1; then
+                info "✅ claw-cli 安装成功！（已配置用户级全局目录 ~/.npm-global）"
+                return
+            fi
+            export PATH="$HOME/.npm-global/bin:$PATH"
+            if command -v claw >/dev/null 2>&1; then
+                info "✅ claw-cli 安装成功！（已配置用户级全局目录 ~/.npm-global）"
+                return
+            fi
         fi
     fi
 
     # 最后尝试 sudo
     warn "安装失败，最后尝试 sudo..."
-    if sudo npm install -g openclaw-claw 2>&1 && command -v claw >/dev/null 2>&1; then
-        info "✅ claw-cli 安装成功！"
-        return
+    if sudo npm install -g openclaw-claw 2>&1; then
+        hash -r 2>/dev/null || true
+        if command -v claw >/dev/null 2>&1; then
+            info "✅ claw-cli 安装成功！"
+            return
+        fi
+        local npm_bin="$(npm bin -g 2>/dev/null || npm prefix -g 2>/dev/null)/bin"
+        if [ -x "$npm_bin/claw" ]; then
+            export PATH="$npm_bin:$PATH"
+            info "✅ claw-cli 安装成功！"
+            return
+        fi
     fi
 
     error "所有安装方式均失败，请手动执行: npm install -g openclaw-claw"
