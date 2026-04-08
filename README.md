@@ -39,10 +39,6 @@ claw config set registry git@github.com:mosqlee/claw-registry.git
 # 检查环境
 claw doctor
 
-```bash
-# 检查环境
-claw doctor
-
 # 搜索包
 claw search stock
 claw search
@@ -187,6 +183,69 @@ npm run dev
 npm run lint
 ```
 
+## claw-cli-manager Skill
+
+本项目附带一个 OpenClaw Skill（`skill/claw-cli-manager/`），让你的 AI 助手能够自动使用 claw-cli 管理包。
+
+### 安装 Skill
+
+将 `skill/claw-cli-manager/` 目录复制到你的 OpenClaw skills 目录：
+
+```bash
+cp -r skill/claw-cli-manager ~/.openclaw/workspace/skills/
+```
+
+然后重启 OpenClaw，AI 助手就能识别以下触发词：
+
+- 「安装 xxx skill」→ 自动搜索并安装
+- 「发布我的 skill」→ 引导发布流程
+- 「装个交易员套件」→ 一键部署场景
+- 「列出已安装的 skill」→ 查看已安装包
+
+### Skill 功能
+
+| 功能 | 说明 |
+|------|------|
+| 🛠️ 一键安装 | 自动检测环境，npm 优先安装 claw-cli |
+| 🔍 智能搜索 | 用户自然语言 → claw 命令映射 |
+| 📤 发布引导 | 检查格式、扫描敏感信息、发布到 registry |
+| 🎭 场景编排 | 6 个预设角色套件，一键部署 |
+
+### 预设角色套件
+
+| 角色 | 说明 | 包含 |
+|------|------|------|
+| 交易员 (trader) | A股交易工作台 | findata-toolkit, bollinger-bands-analyzer, rsi-analyzer, event-driven-detector, financial-statement-analyzer, stock-analyst |
+| 研究员 (researcher) | 知识管理 | llm-wiki, zhipu-web-search, zhipu-web-reader, obsidian-vault |
+| 量化交易 (quant) | 量化分析 | findata-toolkit, bollinger-bands-analyzer, rsi-analyzer, quantclaw |
+| 宏观经济 (macro) | 宏观分析 | macro-data-toolkit, findata-toolkit, macro-researcher |
+| CHD 研究 (chd-researcher) | 医学研究 | chd-journal-monitor-v2, llm-wiki, zhipu-web-search, zhipu-web-reader |
+| 全栈开发 (fullstack) | 编码 + 质量 | coding-agent, subagent-orchestrator, task-coordinator, claudecode, evaluator |
+
+### 使用场景安装脚本
+
+```bash
+# 交互式选择角色
+bash ~/.openclaw/workspace/skills/claw-cli-manager/scripts/setup_scene.sh
+
+# 或直接指定角色
+bash ~/.openclaw/workspace/skills/claw-cli-manager/scripts/setup_scene.sh trader
+```
+
+### 自定义角色套件
+
+在 `scripts/scene_configs/` 下新建 JSON 文件即可：
+
+```json
+{
+  "name": "my-role",
+  "description": "我的自定义角色",
+  "skills": ["skill-a", "skill-b"],
+  "agents": ["agent-c"],
+  "env": { "API_KEY": "your-key" }
+}
+```
+
 ### 项目结构
 
 ```
@@ -199,6 +258,13 @@ claw-cli/
 │   ├── utils.ts        # 工具函数（路径、哈希、解析等）
 │   ├── types.ts        # TypeScript 类型定义
 │   └── index.ts        # 模块导出
+├── skill/
+│   └── claw-cli-manager/  # OpenClaw Skill
+│       ├── SKILL.md        # Skill 定义
+│       └── scripts/
+│           ├── install_claw.sh
+│           ├── setup_scene.sh
+│           └── scene_configs/
 ├── test/
 │   └── utils.test.ts   # 单元测试
 ├── Dockerfile          # Docker 黑盒测试
