@@ -144,68 +144,65 @@ install_claw_cli() {
         [ "$reinstall" != "y" ] && return
     fi
 
-    info "正在安装 openclaw-claw..."
+    info "正在检测 npm 全局目录权限..."
+    local npm_global="$(npm prefix -g 2>/dev/null)"
 
-    # 修复 npm 缓存目录权限（之前 sudo npm 可能留下 root 文件）
-    local npm_cache="$HOME/.npm"
-    if [ -d "$npm_cache" ] && [ "$(stat -f '%u' "$npm_cache" 2>/dev/null)" != "$(id -u)" ]; then
-        warn "检测到 npm 缓存目录有权限问题，正在修复..."
-        sudo chown -R "$(id -u):$(id -g)" "$npm_cache" 2>/dev/null || true
+    # 核心逻辑：如果默认全局目录没有写权限，立刻切换到用户级目录
+    if [ ! -w "$npm_global" ]; then
+        warn "系统级 npm 目录 ($npm_global) 无写权限，自动配置用户级免 sudo 目录..."
+
+        local user_npm_dir="$HOME/.npm-global"
+        mkdir -p "$user_npm_dir"
+        npm config set prefix "$user_npm_dir"
+
+        # 立即在当前脚本会话中生效
+        export PATH="$user_npm_dir/bin:$PATH"
+
+        # 持久化到用户的 Shell 配置文件，并做去重处理
+        case "$CURRENT_SHELL" in
+            zsh)
+                if ! grep -q "$user_npm_dir/bin" "$HOME/.zshrc" 2>/dev/null; then
+                    echo -e '\n# npm global directory' >> "$HOME/.zshrc"
+                    echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zshrc"
+                    info "已将 npm 路径写入 ~/.zshrc (下次打开终端自动生效)"
+                fi
+                ;;
+            bash)
+                if ! grep -q "$user_npm_dir/bin" "$HOME/.bashrc" 2>/dev/null; then
+                    echo -e '\n# npm global directory' >> "$HOME/.bashrc"
+                    echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.bashrc"
+                    info "已将 npm 路径写入 ~/.bashrc (下次打开终端自动生效)"
+                fi
+                ;;
+            fish)
+                mkdir -p "$HOME/.config/fish"
+                if ! grep -q "$user_npm_dir/bin" "$HOME/.config/fish/config.fish" 2>/dev/null; then
+                    echo 'set -gx PATH $HOME/.npm-global/bin $PATH' >> "$HOME/.config/fish/config.fish"
+                    info "已将 npm 路径写入 fish config"
+                fi
+                ;;
+        esac
     fi
 
-    # 尝试直接安装
+    info "正在安装 openclaw-claw..."
+
+    # 因为前面已经处理好权限，这里直接安装，绝不使用 sudo
     if npm install -g openclaw-claw 2>&1; then
         hash -r 2>/dev/null || true
         if command -v claw >/dev/null 2>&1; then
             info "✅ claw-cli 安装成功！"
             return
         fi
-        # npm install 成功但 claw 不在 PATH，手动定位
-        local npm_bin="$(npm bin -g 2>/dev/null || npm prefix -g 2>/dev/null)/bin"
-        if [ -x "$npm_bin/claw" ]; then
-            export PATH="$npm_bin:$PATH"
-            info "✅ claw-cli 安装成功！（已将 $npm_bin 加入 PATH）"
-            return
-        fi
     fi
 
-    # 权限不足时，配置用户级全局目录（不需要 sudo）
-    local npm_global="$(npm prefix -g 2>/dev/null)"
-    if [ ! -w "$npm_global" ]; then
-        warn "npm 全局目录 ($npm_global) 无写权限"
-        info "配置用户级 npm 全局目录..."
-        mkdir -p "$HOME/.npm-global"
-        npm config set prefix "$HOME/.npm-global"
-        export PATH="$HOME/.npm-global/bin:$PATH"
-
-        # 持久化 PATH
-        case "$CURRENT_SHELL" in
-            zsh) [ -f "$HOME/.zshrc" ] && echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.zshrc" ;;
-            bash) [ -f "$HOME/.bashrc" ] && echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> "$HOME/.bashrc" ;;
-            fish) mkdir -p "$HOME/.config/fish"; [ -f "$HOME/.config/fish/config.fish" ] && echo 'set -gx PATH $HOME/.npm-global/bin $PATH' >> "$HOME/.config/fish/config.fish" ;;
-        esac
-
-        if npm install -g openclaw-claw 2>&1; then
-            hash -r 2>/dev/null || true
-            if command -v claw >/dev/null 2>&1; then
-                info "✅ claw-cli 安装成功！（已配置用户级全局目录 ~/.npm-global）"
-                return
-            fi
-            export PATH="$HOME/.npm-global/bin:$PATH"
-            if command -v claw >/dev/null 2>&1; then
-                info "✅ claw-cli 安装成功！（已配置用户级全局目录 ~/.npm-global）"
-                return
-            fi
-        fi
-    fi
-
-    # 配置 ~/.npm-global 后仍然失败，走源码安装
+    # 如果走到了这里，说明网络或 Node 环境有问题，降级为源码编译
     warn "npm 安装失败，尝试从源码安装..."
     local tmp_dir=$(mktemp -d)
     git clone --depth 1 https://github.com/mosqlee/claw-cli.git "$tmp_dir/claw-cli" 2>&1 || {
         rm -rf "$tmp_dir"
         error "源码克隆失败，请检查网络"
     }
+
     (cd "$tmp_dir/claw-cli" && npm install 2>&1 && npx tsc 2>&1) || {
         rm -rf "$tmp_dir"
         error "源码构建失败"
@@ -215,28 +212,6 @@ install_claw_cli() {
     mkdir -p "$bin_dir"
     ln -sf "$tmp_dir/claw-cli/dist/cli.js" "$bin_dir/claw"
     chmod +x "$bin_dir/claw"
-    add_to_path "$bin_dir"
-    export PATH="$PATH:$bin_dir"
-    info "✅ 从源码安装成功 (claw → $bin_dir/claw)"
-    rm -rf "$tmp_dir"
-
-    warn "npm 安装失败，尝试从源码安装..."
-    local tmp_dir=$(mktemp -d)
-    git clone --depth 1 https://github.com/mosqlee/claw-cli.git "$tmp_dir/claw-cli" 2>&1 || {
-        rm -rf "$tmp_dir"
-        error "源码克隆失败，请检查网络"
-    }
-    (cd "$tmp_dir/claw-cli" && npm install 2>&1 && npx tsc 2>&1) || {
-        rm -rf "$tmp_dir"
-        error "源码构建失败"
-    }
-
-    local bin_dir="$HOME/.local/bin"
-    mkdir -p "$bin_dir"
-    ln -sf "$tmp_dir/claw-cli/dist/cli.js" "$bin_dir/claw"
-    chmod +x "$bin_dir/claw"
-
-    # 添加到 PATH（根据 shell）
     add_to_path "$bin_dir"
     export PATH="$PATH:$bin_dir"
     info "✅ 从源码安装成功 (claw → $bin_dir/claw)"
