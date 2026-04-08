@@ -11,7 +11,7 @@ export async function install(pkgRef: string, projectDir?: string, scope?: 'skil
   const [name, version] = parsePkgRef(pkgRef);
   const meta = await fetch_(name, version);
   if (!meta) {
-    throw new Error(`Package '${pkgRef}' not found in registry`);
+    return null;  // Not found in local registry, caller should try sync
   }
   
   const actualScope = scope || meta.type || 'skill';

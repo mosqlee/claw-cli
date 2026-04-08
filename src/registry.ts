@@ -255,3 +255,30 @@ export async function searchRemote(query: string): Promise<SearchResult[]> {
 
   return localResults;
 }
+
+/** Pull remote registry to local cache */
+export async function syncRegistry(): Promise<void> {
+  const { execSync } = await import('child_process');
+  const config = await getConfig();
+  const registryUrl = config.registry || config.skillsRepo;
+
+  for (const subdir of ['skills', 'agents', 'scenes']) {
+    const tmpDir = path.join(os.tmpdir(), `claw-sync-${Date.now()}`);
+    try {
+      await fs.ensureDir(tmpDir);
+      execSync(`git clone --depth 1 --filter=blob:none --sparse ${registryUrl} ${tmpDir}/repo 2>/dev/null`, { timeout: 60000 });
+      execSync(`cd ${tmpDir}/repo && git sparse-checkout set ${subdir} 2>/dev/null`, { timeout: 15000 });
+
+      const src = path.join(tmpDir, 'repo', subdir);
+      const dst = path.join(REGISTRY_DIR, subdir);
+      if (await fs.pathExists(src)) {
+        await ensureDir(dst);
+        await fs.copy(src, dst, { overwrite: true });
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      await fs.remove(tmpDir);
+    }
+  }
+}

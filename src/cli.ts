@@ -59,7 +59,16 @@ program
   .description('Install a package from registry')
   .action(async (pkg) => {
     try {
-      const meta = await install(pkg, process.cwd());
+      let meta = await install(pkg, process.cwd());
+      if (meta) {
+        console.log(`✅ Installed ${meta.type}/${meta.name}@${meta.version}`);
+        return;
+      }
+      // Not found locally - try pulling registry first
+      console.log('📦 Package not in local cache, pulling registry...');
+      const { syncRegistry } = await import('./registry.js');
+      await syncRegistry();
+      meta = await install(pkg, process.cwd());
       if (meta) {
         console.log(`✅ Installed ${meta.type}/${meta.name}@${meta.version}`);
       }
