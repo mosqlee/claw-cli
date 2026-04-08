@@ -87,8 +87,19 @@ check_environment() {
         error "Git 未安装"
     fi
 
+    # jq
     if ! command -v jq >/dev/null 2>&1; then
-        error "jq 未安装，请先安装: brew install jq"
+        info "jq 未安装，正在自动安装..."
+        if command -v brew >/dev/null 2>&1; then
+            brew install jq 2>&1 || warn "brew install jq 失败，请手动安装"
+        elif command -v apt-get >/dev/null 2>&1; then
+            sudo apt-get install -y jq 2>&1 || warn "apt-get install jq 失败，请手动安装"
+        elif command -v yum >/dev/null 2>&1; then
+            sudo yum install -y jq 2>&1 || warn "yum install jq 失败，请手动安装"
+        else
+            warn "无法自动安装 jq，请手动安装后重试"
+            exit 1
+        fi
     fi
     info "jq $(jq --version 2>/dev/null) ✅"
 
