@@ -17,6 +17,7 @@ import { install, uninstall, listInstalled, verify, agentInstall, agentSoul } fr
 import { pack, installPack } from './packer.js';
 import { init as sceneInit, add as sceneAdd, remove as sceneRemove, installScene, list as sceneList, validate as sceneValidate } from './scene.js';
 import { showConfig, setConfig } from './config.js';
+import { update } from './updater.js';
 
 const program = new Command();
 
@@ -311,6 +312,20 @@ sceneCmd
   .action(async (options) => {
     const ok = await sceneValidate(options.dir);
     if (!ok) process.exit(1);
+  });
+
+// ─── Update (self-update) ───
+program
+  .command('update')
+  .description('Update claw CLI to the latest version')
+  .option('--check', 'Only check for updates, do not install')
+  .action(async (options) => {
+    try {
+      await update(options);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
   });
 
 // ─── Doctor ───
