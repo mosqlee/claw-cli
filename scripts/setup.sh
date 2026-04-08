@@ -146,6 +146,13 @@ install_claw_cli() {
 
     info "正在安装 openclaw-claw..."
 
+    # 修复 npm 缓存目录权限（之前 sudo npm 可能留下 root 文件）
+    local npm_cache="$HOME/.npm"
+    if [ -d "$npm_cache" ] && [ "$(stat -f '%u' "$npm_cache" 2>/dev/null)" != "$(id -u)" ]; then
+        warn "检测到 npm 缓存目录有权限问题，正在修复..."
+        sudo chown -R "$(id -u):$(id -g)" "$npm_cache" 2>/dev/null || true
+    fi
+
     # 尝试直接安装
     if npm install -g openclaw-claw 2>&1; then
         hash -r 2>/dev/null || true
