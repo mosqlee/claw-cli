@@ -6,6 +6,7 @@ import { publish, fetch_, search } from './registry.js';
 import { install, uninstall, listInstalled, verify, agentInstall, agentSoul } from './package.js';
 import { pack, installPack } from './packer.js';
 import { init as sceneInit, add as sceneAdd, remove as sceneRemove, installScene, list as sceneList, validate as sceneValidate } from './scene.js';
+import { showConfig, setConfig } from './config.js';
 
 const program = new Command();
 
@@ -177,6 +178,38 @@ agentCmd
       console.error(`❌ ${(err as Error).message}`);
       process.exit(1);
     }
+  });
+
+// ─── Config commands ───
+const configCmd = program
+  .command('config')
+  .description('Configuration management');
+
+configCmd
+  .command('set <key> <value>')
+  .description('Set a configuration value')
+  .action(async (key, value) => {
+    try {
+      await setConfig(key, value);
+      console.log(`✅ Set ${key} = ${value}`);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+configCmd
+  .command('show')
+  .description('Show current configuration')
+  .action(async () => {
+    await showConfig();
+  });
+
+configCmd
+  .command('list')
+  .description('Show current configuration (alias for show)')
+  .action(async () => {
+    await showConfig();
   });
 
 // ─── Scene commands ───
