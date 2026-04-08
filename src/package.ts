@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import readline from 'readline';
 import { PackageMeta, InstalledPackage, VerifyResult } from './types.js';
-import { pkgDir, installedDir, ensureDir, copyDir, readJson, writeJson, isPathVar, suggestDefault, parsePkgRef } from './utils.js';
+import { pkgDir, installedDir, ensureDir, copyDir, readJson, writeJson, isPathVar, suggestDefault, parsePkgRef, OPENCLAW_DIR, OPENCLAW_CONFIG, OPENCLAW_AGENTS_DIR, OPENCLAW_SKILLS_DIR } from './utils.js';
 import { fetch_ } from './registry.js';
 
 export async function install(pkgRef: string, projectDir?: string, scope?: 'skill' | 'agent'): Promise<PackageMeta | null> {
@@ -13,13 +13,13 @@ export async function install(pkgRef: string, projectDir?: string, scope?: 'skil
   if (!meta) {
     return null;  // Not found in local registry, caller should try sync
   }
-  
+
   const actualScope = scope || meta.type || 'skill';
   const dest = installedDir(actualScope, name);
   const regDir = pkgDir(actualScope, name);
-  
+
   await ensureDir(dest);
-  
+
   // Copy from registry
   if (await fs.pathExists(regDir)) {
     for (const entry of await fs.readdir(regDir)) {
@@ -32,11 +32,90 @@ export async function install(pkgRef: string, projectDir?: string, scope?: 'skil
       }
     }
   }
-  
+
   // Interactive env setup
   await checkEnvSetup(dest, name);
-  
+
+  // Deploy to OpenClaw
+  if (actualScope === 'agent') {
+    await deployAgentToOpenClaw(name, dest);
+    await updateOpenClawConfig(name);
+  } else if (actualScope === 'skill') {
+    await deploySkillToOpenClaw(name, dest);
+  }
+
   return meta;
+}
+
+// --- OpenClaw deployment functions ---
+
+async function deployAgentToOpenClaw(name: string, installedDir: string): Promise<void> {
+  const targetDir = path.join(OPENCLAW_AGENTS_DIR, name, 'agent');
+  await fs.ensureDir(targetDir);
+  await fs.copy(installedDir, targetDir, { overwrite: true });
+  console.log(`  ✅ Deployed to ~/.openclaw/agents/${name}/agent/`);
+}
+
+async function deploySkillToOpenClaw(name: string, installedDir: string, targetAgent?: string): Promise<void> {
+  let targetDir: string;
+  if (targetAgent) {
+    // Agent's skill
+    targetDir = path.join(OPENCLAW_AGENTS_DIR, targetAgent, 'skills', name);
+  } else {
+    // Shared skill
+    targetDir = path.join(OPENCLAW_SKILLS_DIR, name);
+  }
+  await fs.ensureDir(targetDir);
+  await fs.copy(installedDir, targetDir, { overwrite: true });
+  console.log(`  ✅ Deployed to ${targetAgent ? `~/.openclaw/agents/${targetAgent}/skills/${name}/` : `~/.openclaw/workspace/skills/${name}/`}`);
+}
+
+async function updateOpenClawConfig(name: string): Promise<void> {
+  if (!(await fs.pathExists(OPENCLAW_CONFIG))) return;
+
+  const config = await readJson<Record<string, unknown>>(OPENCLAW_CONFIG);
+  if (!config) return;
+
+  if (!config.agents) config.agents = {} as Record<string, unknown>;
+  const agents = config.agents as Record<string, unknown>;
+  if (!agents.list) agents.list = [];
+
+  const list = agents.list as Array<Record<string, unknown>>;
+  // Check if already exists
+  if (list.some(a => a.id === name)) {
+    console.log(`  ℹ️  Agent '${name}' already in openclaw.json`);
+    return;
+  }
+
+  // Add new agent
+  list.push({
+    id: name,
+    name: name,
+    workspace: path.join(OPENCLAW_DIR, `workspace-${name}`),
+    agentDir: path.join(OPENCLAW_AGENTS_DIR, name, 'agent'),
+    model: { primary: 'inherit' }
+  });
+
+  await writeJson(OPENCLAW_CONFIG, config);
+  console.log(`  ✅ Added to openclaw.json agents.list`);
+}
+
+async function removeFromOpenClawConfig(name: string): Promise<void> {
+  if (!(await fs.pathExists(OPENCLAW_CONFIG))) return;
+
+  const config = await readJson<Record<string, unknown>>(OPENCLAW_CONFIG);
+  if (!config || !config.agents) return;
+
+  const agents = config.agents as Record<string, unknown>;
+  if (!agents.list) return;
+
+  const list = agents.list as Array<Record<string, unknown>>;
+  const idx = list.findIndex(a => a.id === name);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+    await writeJson(OPENCLAW_CONFIG, config);
+    console.log(`  ✅ Removed from openclaw.json agents.list`);
+  }
 }
 
 
@@ -106,6 +185,22 @@ export async function uninstall(name: string): Promise<void> {
     const dir = installedDir(scope, name);
     if (await fs.pathExists(dir)) {
       await fs.remove(dir);
+
+      // Clean up OpenClaw directories
+      if (scope === 'agent') {
+        const agentDir = path.join(OPENCLAW_AGENTS_DIR, name);
+        if (await fs.pathExists(agentDir)) {
+          await fs.remove(agentDir);
+          console.log(`  ✅ Removed ~/.openclaw/agents/${name}/`);
+        }
+        await removeFromOpenClawConfig(name);
+      } else {
+        const skillDir = path.join(OPENCLAW_SKILLS_DIR, name);
+        if (await fs.pathExists(skillDir)) {
+          await fs.remove(skillDir);
+          console.log(`  ✅ Removed ~/.openclaw/workspace/skills/${name}/`);
+        }
+      }
       return;
     }
   }
