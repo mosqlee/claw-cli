@@ -3,6 +3,7 @@
 
 export * from './types.js';
 export * from './utils.js';
-export * from './registry.js';
+export { publish, fetch_, search, listRegistry, searchRemote, syncRegistry } from './registry.js';
 export * from './package.js';
 export * from './packer.js';
+export * from './updater.js';

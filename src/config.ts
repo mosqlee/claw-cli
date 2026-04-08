@@ -5,20 +5,28 @@ import { CONFIG_FILE, DEFAULT_CONFIG, ensureDir } from './utils.js';
 
 export type Config = typeof DEFAULT_CONFIG;
 
+export const _deps = {
+  readJson: (p: string) => fs.readJson(p),
+  writeJson: (p: string, data: unknown, opts?: object) => fs.writeJson(p, data, opts),
+  ensureDir: (dir: string) => ensureDir(dir),
+  configFile: () => CONFIG_FILE,
+  defaultConfig: () => ({ ...DEFAULT_CONFIG }),
+};
+
 export async function getConfig(): Promise<Config> {
   try {
-    const data = await fs.readJson(CONFIG_FILE);
-    return { ...DEFAULT_CONFIG, ...data };
+    const data = await _deps.readJson(_deps.configFile());
+    return { ..._deps.defaultConfig(), ...data };
   } catch {
-    return { ...DEFAULT_CONFIG };
+    return { ..._deps.defaultConfig() };
   }
 }
 
 export async function setConfig(key: string, value: string): Promise<void> {
   const config = await getConfig();
   (config as Record<string, unknown>)[key] = value;
-  await ensureDir(CONFIG_FILE);
-  await fs.writeJson(CONFIG_FILE, config, { spaces: 2 });
+  await _deps.ensureDir(_deps.configFile());
+  await _deps.writeJson(_deps.configFile(), config, { spaces: 2 });
 }
 
 export async function showConfig(): Promise<void> {
