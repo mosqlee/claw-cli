@@ -7,7 +7,130 @@ import crypto from 'crypto';
 
 export const REGISTRY_DIR = path.join(os.homedir(), '.claw_store', 'registry');
 export const PACKAGES_DIR = path.join(os.homedir(), '.claw_store', 'packages');
-export const EXCLUDE_FILES = new Set(['user.md', 'agents.md', '.env.local', '.env', 'overlay', '.git']);
+// Files always excluded from publish/pack and hash computation
+export const EXCLUDE_FILES = new Set([
+  'user.md', 'agents.md',
+  '.env', '.env.local', '.env.production', '.env.staging', '.env.development', '.env.test',
+  'overlay', '.git',
+]);
+
+// Filename globs considered sensitive (matched by extension)
+export const SENSITIVE_EXTENSIONS = new Set(['.key', '.pem', '.p12', '.pfx', '.jks', '.cert', '.crt']);
+
+export function isSensitiveFilename(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  if (EXCLUDE_FILES.has(lower)) return true;
+  const ext = path.extname(lower);
+  return SENSITIVE_EXTENSIONS.has(ext);
+}
+
+export interface SensitiveMatch {
+  type: 'secret' | 'path';
+  varName: string;
+  raw: string;
+}
+
+/** Detect hardcoded secrets and absolute paths in file content. */
+export function scanSensitiveInfo(content: string): SensitiveMatch[] {
+  const matches: SensitiveMatch[] = [];
+  const seen = new Set<string>();
+
+  const add = (m: SensitiveMatch) => {
+    const key = `${m.type}:${m.varName}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      matches.push(m);
+    }
+  };
+
+  // --- Secret patterns ---
+  const secretPatterns: Array<{ re: RegExp; prefix: string }> = [
+    // OpenAI keys  sk-...
+    { re: /(?:OPENAI[_-]?API[_-]?KEY|OPENAI[_-]?KEY)\s*[=:]\s*["']?(sk-[A-Za-z0-9_-]{20,})["']?/gi, prefix: 'OPENAI_API_KEY' },
+    // GitHub tokens  ghp_ / gho_ / ghu_
+    { re: /(?:GITHUB[_-]?TOKEN|GH[_-]?TOKEN|GH[_-]?PAT)\s*[=:]\s*["']?(gh[pou]_[A-Za-z0-9]{30,})["']?/gi, prefix: 'GITHUB_TOKEN' },
+    // Google API keys  AIza...
+    { re: /(?:GOOGLE[_-]?API[_-]?KEY|GCP[_-]?API[_-]?KEY)\s*[=:]\s*["']?(AIza[A-Za-z0-9_-]{30,})["']?/gi, prefix: 'GOOGLE_API_KEY' },
+    // Generic API key patterns
+    { re: /(?:API[_-]?KEY|APIKEY)\s*[=:]\s*["']([A-Za-z0-9_-]{20,})["']/gi, prefix: 'API_KEY' },
+    // Bearer tokens
+    { re: /Bearer\s+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/gi, prefix: 'BEARER_TOKEN' },
+    // password=xxx
+    { re: /(?:PASSWORD|PASSWD|PASS)\s*[=:]\s*["']([^\s"']{8,})["']/gi, prefix: 'PASSWORD' },
+    // Generic secret/token assignment
+    { re: /(?:SECRET[_-]?KEY|SECRET|TOKEN)\s*[=:]\s*["']([A-Za-z0-9_-]{20,})["']/gi, prefix: 'SECRET_KEY' },
+    // Anthropic keys  sk-ant-...
+    { re: /(?:ANTHROPIC[_-]?API[_-]?KEY|ANTHROPIC[_-]?KEY)\s*[=:]\s*["']?(sk-ant-[A-Za-z0-9_-]{20,})["']?/gi, prefix: 'ANTHROPIC_API_KEY' },
+  ];
+
+  for (const { re, prefix } of secretPatterns) {
+    let m: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((m = re.exec(content)) !== null) {
+      add({ type: 'secret', varName: prefix, raw: m[1] });
+    }
+  }
+
+  // --- Hardcoded absolute paths with usernames ---
+  // /Users/username/, /home/username/, ~username/
+  const pathPatterns = [
+    { re: /\/Users\/([a-zA-Z0-9_-]+)\//g, name: (m: RegExpExecArray) => `HOME_DIR` },
+    { re: /\/home\/([a-zA-Z0-9_-]+)\//g, name: (m: RegExpExecArray) => `HOME_DIR` },
+  ];
+
+  for (const { re, name } of pathPatterns) {
+    let m: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((m = re.exec(content)) !== null) {
+      const varName = name(m);
+      // Only flag if the username is not a generic placeholder
+      const username = m[1];
+      if (!['shared', 'nobody', 'admin', 'user', 'root', 'daemon'].includes(username.toLowerCase())) {
+        add({ type: 'path', varName, raw: m[0].slice(0, -1) }); // raw without trailing /
+      }
+    }
+  }
+
+  return matches;
+}
+
+/** Replace hardcoded sensitive values in content with env var references. */
+export function replaceSensitiveInfo(content: string, lang: 'js' | 'py' | 'sh' | 'md' = 'js'): string {
+  const hits = scanSensitiveInfo(content);
+  let result = content;
+
+  for (const hit of hits) {
+    switch (lang) {
+      case 'py':
+        result = result.split(hit.raw).join(`os.environ.get("${hit.varName}", "${hit.raw.slice(0, 4)}...")`);
+        break;
+      case 'sh':
+        result = result.split(hit.raw).join(`\${${hit.varName}}`);
+        break;
+      case 'md':
+        result = result.split(hit.raw).join(`\${${hit.varName}}`);
+        break;
+      default: // js
+        result = result.split(hit.raw).join(`process.env.${hit.varName}`);
+        break;
+    }
+  }
+  return result;
+}
+
+/** Detect file language from extension for replacement mode. */
+export function detectLang(filePath: string): 'js' | 'py' | 'sh' | 'md' {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === '.py') return 'py';
+  if (ext === '.sh' || ext === '.bash' || ext === '.zsh') return 'sh';
+  if (ext === '.md' || ext === '.txt') return 'md';
+  return 'js';
+}
+
+/** Check whether a filename should be excluded during publish/pack copy. */
+export function shouldExclude(filename: string): boolean {
+  return isSensitiveFilename(filename) || (filename !== '.env.example' && filename.startsWith('.env'));
+}
 
 export function pkgDir(scope: string, name: string): string {
   return path.join(REGISTRY_DIR, scope, name);

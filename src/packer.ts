@@ -4,7 +4,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import * as tar from 'tar';
 import { PackageMeta } from './types.js';
-import { installedDir, pkgDir, ensureDir, readJson, writeJson } from './utils.js';
+import { installedDir, pkgDir, ensureDir, readJson, writeJson, shouldExclude } from './utils.js';
 import { listInstalled } from './package.js';
 
 export async function pack(name: string, outputDir: string): Promise<string> {
@@ -27,7 +27,19 @@ export async function pack(name: string, outputDir: string): Promise<string> {
     // Copy package files
     const srcDir = installedDir(pkg.scope, name);
     const destDir = path.join(tmpDir, 'packages', name);
-    await fs.copy(srcDir, destDir);
+    // Copy without sensitive files
+    await fs.ensureDir(destDir);
+    const entries = await fs.readdir(srcDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (shouldExclude(entry.name)) continue;
+      const src = path.join(srcDir, entry.name);
+      const dst = path.join(destDir, entry.name);
+      if (entry.isDirectory()) {
+        await fs.copy(src, dst, { overwrite: true, filter: (f) => !shouldExclude(path.basename(f)) });
+      } else {
+        await fs.copy(src, dst);
+      }
+    }
     
     // Create manifest
     const manifest = {
