@@ -152,6 +152,17 @@ install_claw_cli() {
         fi
     fi
 
+    # npm 权限不足时尝试 sudo
+    if [ $? -ne 0 ]; then
+        warn "npm 全局安装失败（可能权限不足），尝试 sudo..."
+        if sudo npm install -g openclaw-claw 2>&1; then
+            if command -v claw >/dev/null 2>&1; then
+                info "✅ claw-cli 安装成功！"
+                return
+            fi
+        fi
+    fi
+
     warn "npm 安装失败，尝试从源码安装..."
     local tmp_dir=$(mktemp -d)
     git clone --depth 1 https://github.com/mosqlee/claw-cli.git "$tmp_dir/claw-cli" 2>&1 || {
