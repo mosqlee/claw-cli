@@ -1,4 +1,4 @@
-# claw-cli
+# openclaw-claw
 
 > 📦 Package Manager for OpenClaw Skills & Agents
 
@@ -17,7 +17,10 @@
 ## 安装
 
 ```bash
-# 从源码安装
+# 推荐：npm 全局安装
+npm install -g openclaw-claw
+
+# 或从源码安装
 git clone https://github.com/mosqlee/claw-cli.git
 cd claw-cli
 npm install
@@ -28,6 +31,13 @@ npm link
 **要求**：Node.js >= 18
 
 ## 快速开始
+
+```bash
+# 配置私有 Registry
+claw config set registry git@github.com:mosqlee/claw-registry.git
+
+# 检查环境
+claw doctor
 
 ```bash
 # 检查环境

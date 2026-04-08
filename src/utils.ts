@@ -9,9 +9,10 @@ export const REGISTRY_DIR = path.join(os.homedir(), '.claw_store', 'registry');
 export const PACKAGES_DIR = path.join(os.homedir(), '.claw_store', 'packages');
 export const CONFIG_FILE = path.join(os.homedir(), '.claw_store', 'config.json');
 export const DEFAULT_CONFIG = {
-  scenesRepo: 'https://github.com/mosqlee/claw-scenes.git',
-  agentsRepo: 'https://github.com/mosqlee/claw-agents.git',
-  skillsRepo: 'https://github.com/mosqlee/claw-skills.git',
+  registry: 'git@github.com:mosqlee/claw-registry.git',
+  skillsRepo: 'https://github.com/mosqlee/claw-registry.git',
+  agentsRepo: 'https://github.com/mosqlee/claw-registry.git',
+  scenesRepo: 'https://github.com/mosqlee/claw-registry.git',
 };
 // Files always excluded from publish/pack and hash computation
 export const EXCLUDE_FILES = new Set([

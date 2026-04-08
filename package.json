@@ -1,5 +1,5 @@
 {
-  "name": "claw-cli",
+  "name": "openclaw-claw",
   "version": "1.0.0",
   "description": "Claw Package Manager CLI - Node.js/TypeScript version",
   "type": "module",

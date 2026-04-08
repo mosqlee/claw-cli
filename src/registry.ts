@@ -214,7 +214,7 @@ async function fetchRemotePackages(repoUrl: string, subdir: string, query: strin
         const pkgPath = path.join(scopeDir, entry.name, 'package.json');
         const data = await readJson<Record<string, unknown>>(pkgPath);
         if (data) {
-          const scope = subdir === 'agent' ? 'agent' as const : 'skill' as const;
+          const scope = subdir === 'agents' ? 'agent' as const : 'skill' as const;
           results.push({
             name: data.name as string || entry.name,
             version: (data.version as string) || '1.0.0',
@@ -237,10 +237,11 @@ async function fetchRemotePackages(repoUrl: string, subdir: string, query: strin
 /** Search both local registry and remote repos. */
 export async function searchRemote(query: string): Promise<SearchResult[]> {
   const config = await getConfig();
+  const registryUrl = config.registry || config.skillsRepo;
   const [localResults, ...remoteResults] = await Promise.all([
     search(query),
-    fetchRemotePackages(config.skillsRepo, 'skill', query),
-    fetchRemotePackages(config.agentsRepo, 'agent', query),
+    fetchRemotePackages(registryUrl, 'skills', query),
+    fetchRemotePackages(registryUrl, 'agents', query),
   ]);
 
   // Merge: remote items not already in local get marked
