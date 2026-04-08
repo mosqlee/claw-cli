@@ -118,13 +118,18 @@ claw scene add <package>
 claw scene install
 ```
 
-**预设角色套件**（位于 `scripts/scene_configs/`）：
+**场景套件**：场景配置存储在 Registry 的 `scenes/` 目录下，通过 `setup_scene.sh` 自动拉取。任何人都可以向 Registry 提交新的场景 JSON 来添加角色套件。
 
-| 角色 | 配置文件 | 包含 |
-|------|---------|------|
-| 交易员 | `trader.json` | findata-toolkit, bollinger-bands-analyzer, rsi-analyzer, stock-analyst agent |
-| 研究员 | `researcher.json` | llm-wiki, zhipu-web-search, obsidian-vault |
-| 量化交易 | `quant.json` | findata-toolkit, bollinger-bands-analyzer, rsi-analyzer |
+场景 JSON 格式：
+```json
+{
+  "name": "trader",
+  "description": "A股交易员工作台",
+  "skills": ["findata-toolkit", "bollinger-bands-analyzer"],
+  "agents": ["stock-analyst"],
+  "env": {}
+}
+```
 
 ### 离线部署
 
@@ -142,7 +147,8 @@ claw install-pack ./offline/<name>.tar.gz   # 离线安装
 | "帮我装xxx skill" | `claw search xxx` → 展示结果 → `claw install <name>` |
 | "搜索xxx相关的skill" | `claw search xxx` → 格式化展示 |
 | "发布我的skill" | 引导到 skill 目录 → `claw publish <dir>` |
-| "装个交易员套件" | 执行 `setup_scene.sh` 或 `claw scene install trader` |
+| "装个交易员套件" | 执行 `setup_scene.sh` 自动拉取 registry 场景列表 |
+| "有哪些角色套件" | 执行 `setup_scene.sh` 拉取并展示 |
 | "列出已安装的skill" | `claw list` → 格式化展示 |
 | "claw doctor" | 直接执行 → 根据结果建议修复 |
 
