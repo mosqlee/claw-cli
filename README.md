@@ -213,38 +213,33 @@ cp -r skill/claw-cli-manager ~/.openclaw/workspace/skills/
 
 ### 预设角色套件
 
-| 角色 | 说明 | 包含 |
-|------|------|------|
-| 交易员 (trader) | A股交易工作台 | findata-toolkit, bollinger-bands-analyzer, rsi-analyzer, event-driven-detector, financial-statement-analyzer, stock-analyst |
-| 研究员 (researcher) | 知识管理 | llm-wiki, zhipu-web-search, zhipu-web-reader, obsidian-vault |
-| 量化交易 (quant) | 量化分析 | findata-toolkit, bollinger-bands-analyzer, rsi-analyzer, quantclaw |
-| 宏观经济 (macro) | 宏观分析 | macro-data-toolkit, findata-toolkit, macro-researcher |
-| CHD 研究 (chd-researcher) | 医学研究 | chd-journal-monitor-v2, llm-wiki, zhipu-web-search, zhipu-web-reader |
-| 全栈开发 (fullstack) | 编码 + 质量 | coding-agent, subagent-orchestrator, task-coordinator, claudecode, evaluator |
+场景配置存储在 Registry 的 `scenes/` 目录下，运行 `setup_scene.sh` 时自动拉取。团队成员可以通过向 Registry 提交 JSON 文件来添加新场景。
+
+场景 JSON 格式：
+
+```json
+{
+  "name": "trader",
+  "description": "A股交易员工作台",
+  "skills": ["findata-toolkit", "bollinger-bands-analyzer"],
+  "agents": ["stock-analyst"],
+  "env": {}
+}
+```
 
 ### 使用场景安装脚本
 
 ```bash
-# 交互式选择角色
+# 交互式选择角色（自动从 Registry 拉取最新场景列表）
 bash ~/.openclaw/workspace/skills/claw-cli-manager/scripts/setup_scene.sh
 
-# 或直接指定角色
+# 或直接指定角色名称
 bash ~/.openclaw/workspace/skills/claw-cli-manager/scripts/setup_scene.sh trader
 ```
 
-### 自定义角色套件
+### 添加新场景
 
-在 `scripts/scene_configs/` 下新建 JSON 文件即可：
-
-```json
-{
-  "name": "my-role",
-  "description": "我的自定义角色",
-  "skills": ["skill-a", "skill-b"],
-  "agents": ["agent-c"],
-  "env": { "API_KEY": "your-key" }
-}
-```
+在 Registry 的 `scenes/` 目录下新建 JSON 文件即可，格式同上。
 
 ### 项目结构
 
