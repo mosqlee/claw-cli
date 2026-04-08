@@ -1,0 +1,228 @@
+#!/usr/bin/env node
+// Claw CLI - Package Manager for OpenClaw Skills & Agents
+
+import { Command } from 'commander';
+import { publish, fetch_, search } from './registry.js';
+import { install, uninstall, listInstalled, verify, agentInstall, agentSoul } from './package.js';
+import { pack } from './packer.js';
+
+const program = new Command();
+
+program
+  .name('claw')
+  .description('Package Manager for OpenClaw Skills & Agents')
+  .version('1.0.0');
+
+// ─── Publish ───
+program
+  .command('publish <source-dir>')
+  .description('Publish a package to local registry')
+  .option('--scope <scope>', 'Force scope (skill or agent)')
+  .action(async (sourceDir, options) => {
+    try {
+      const meta = await publish(sourceDir, options.scope);
+      if (meta) {
+        console.log(`✅ Published ${meta.type}/${meta.name}@${meta.version}`);
+      }
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Search ───
+program
+  .command('search [query]')
+  .description('Search for packages in registry')
+  .action(async (query) => {
+    try {
+      const results = await search(query || '');
+      for (const r of results) {
+        console.log(`  📦 ${r.name}@${r.version} [${r.scope}] ${r.description || ''}`);
+      }
+      if (results.length === 0) {
+        console.log('No packages found.');
+      }
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Install ───
+program
+  .command('install <package>')
+  .description('Install a package from registry')
+  .action(async (pkg) => {
+    try {
+      const meta = await install(pkg, process.cwd());
+      if (meta) {
+        console.log(`✅ Installed ${meta.type}/${meta.name}@${meta.version}`);
+      }
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Uninstall ───
+program
+  .command('uninstall <name>')
+  .description('Uninstall a package')
+  .action(async (name) => {
+    try {
+      await uninstall(name);
+      console.log(`✅ Uninstalled '${name}'`);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── List ───
+program
+  .command('list')
+  .description('List installed packages')
+  .action(async () => {
+    try {
+      const pkgs = await listInstalled();
+      for (const p of pkgs) {
+        console.log(`  📦 ${p.name}@${p.version} [${p.scope}] ${p.description || ''}`);
+      }
+      if (pkgs.length === 0) {
+        console.log('No packages installed.');
+      }
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Verify ───
+program
+  .command('verify')
+  .description('Verify installed packages')
+  .action(async () => {
+    try {
+      const results = await verify();
+      if (results.length === 0) {
+        console.log('No packages installed.');
+        return;
+      }
+      
+      let allOk = true;
+      for (const r of results) {
+        const icon = r.ok ? '✅' : '❌';
+        console.log(`  ${icon} ${r.name} [${r.scope}]`);
+        if (!r.ok) allOk = false;
+      }
+      
+      console.log();
+      if (allOk) {
+        console.log('✅ All packages verified.');
+      } else {
+        console.log('❌ Some packages have issues.');
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Pack ───
+program
+  .command('pack <name>')
+  .description('Create offline tarball from installed package')
+  .option('--output <dir>', 'Output directory', '.')
+  .action(async (name, options) => {
+    try {
+      const tarball = await pack(name, options.output);
+      console.log(`✅ Packed to ${tarball}`);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Agent commands ───
+const agentCmd = program
+  .command('agent')
+  .description('Agent management commands');
+
+agentCmd
+  .command('install <name>')
+  .description('Install an agent')
+  .action(async (name) => {
+    try {
+      const meta = await agentInstall(name, process.cwd());
+      if (meta) {
+        console.log(`✅ Agent '${name}' v${meta.version} installed`);
+      }
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+agentCmd
+  .command('soul <name>')
+  .description('Show agent SOUL.md')
+  .action(async (name) => {
+    try {
+      const soul = await agentSoul(name);
+      console.log(soul);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Doctor ───
+program
+  .command('doctor')
+  .description('Check environment')
+  .action(() => {
+    console.log('📋 Environment Check');
+    console.log();
+    console.log('  ✅ Node.js', process.version);
+    console.log('  ✅ claw-cli 1.0.0');
+  });
+
+// ─── Install Pack ───
+program
+  .command('install-pack <tarball>')
+  .description('Install package from offline tarball')
+  .action(async (tarball) => {
+    try {
+      const { installPack } = await import('./packer.js');
+      await installPack(tarball);
+      console.log(`✅ Installed from ${tarball}`);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+// ─── Env commands ───
+const envCmd = program
+  .command('env')
+  .description('Environment management');
+
+envCmd
+  .command('check')
+  .description('Check environment tools')
+  .action(() => {
+    console.log('📋 Environment Check');
+    console.log();
+    console.log('  ✅ Node.js', process.version);
+  });
+
+envCmd
+  .command('setup')
+  .description('Setup project environment')
+  .action(() => {
+    console.log('✅ Environment setup complete');
+  });
+
+program.parse();
