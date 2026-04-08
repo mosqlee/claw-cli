@@ -48,3 +48,11 @@ export interface VerifyResult {
   ok: boolean;
   actual: string;
 }
+
+export interface SceneConfig {
+  name: string;
+  description?: string;
+  agents?: string[];
+  skills?: string[];
+  env?: Record<string, string>;
+}

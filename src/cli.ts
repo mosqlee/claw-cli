@@ -4,7 +4,8 @@
 import { Command } from 'commander';
 import { publish, fetch_, search } from './registry.js';
 import { install, uninstall, listInstalled, verify, agentInstall, agentSoul } from './package.js';
-import { pack } from './packer.js';
+import { pack, installPack } from './packer.js';
+import { init as sceneInit, add as sceneAdd, remove as sceneRemove, installScene, list as sceneList, validate as sceneValidate } from './scene.js';
 
 const program = new Command();
 
@@ -176,6 +177,86 @@ agentCmd
       console.error(`❌ ${(err as Error).message}`);
       process.exit(1);
     }
+  });
+
+// ─── Scene commands ───
+const sceneCmd = program
+  .command('scene')
+  .description('Scene management commands');
+
+sceneCmd
+  .command('init [name]')
+  .description('Initialize a scene configuration')
+  .option('--desc <description>', 'Scene description')
+  .option('--dir <path>', 'Target directory')
+  .action(async (name, options) => {
+    try {
+      await sceneInit(name || 'default', options.desc, options.dir);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+sceneCmd
+  .command('add <package>')
+  .description('Add a package to the current scene')
+  .option('--dir <path>', 'Target directory')
+  .action(async (pkg, options) => {
+    try {
+      await sceneAdd(pkg, options.dir);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+sceneCmd
+  .command('remove <package>')
+  .description('Remove a package from the current scene')
+  .option('--dir <path>', 'Target directory')
+  .action(async (pkg, options) => {
+    try {
+      await sceneRemove(pkg, options.dir);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+sceneCmd
+  .command('install')
+  .description('Install all packages from scene configuration')
+  .option('--dir <path>', 'Target directory')
+  .action(async (options) => {
+    try {
+      await installScene(options.dir);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+sceneCmd
+  .command('list')
+  .description('Show current scene configuration')
+  .option('--dir <path>', 'Target directory')
+  .action(async (options) => {
+    try {
+      await sceneList(options.dir);
+    } catch (err) {
+      console.error(`❌ ${(err as Error).message}`);
+      process.exit(1);
+    }
+  });
+
+sceneCmd
+  .command('validate')
+  .description('Validate scene configuration file')
+  .option('--dir <path>', 'Target directory')
+  .action(async (options) => {
+    const ok = await sceneValidate(options.dir);
+    if (!ok) process.exit(1);
   });
 
 // ─── Doctor ───
