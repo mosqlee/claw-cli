@@ -199,23 +199,26 @@ install_claw_cli() {
         fi
     fi
 
-    # 最后尝试 sudo
-    warn "安装失败，最后尝试 sudo..."
-    if sudo npm install -g openclaw-claw 2>&1; then
-        hash -r 2>/dev/null || true
-        if command -v claw >/dev/null 2>&1; then
-            info "✅ claw-cli 安装成功！"
-            return
-        fi
-        local npm_bin="$(npm bin -g 2>/dev/null || npm prefix -g 2>/dev/null)/bin"
-        if [ -x "$npm_bin/claw" ]; then
-            export PATH="$npm_bin:$PATH"
-            info "✅ claw-cli 安装成功！"
-            return
-        fi
-    fi
+    # 配置 ~/.npm-global 后仍然失败，走源码安装
+    warn "npm 安装失败，尝试从源码安装..."
+    local tmp_dir=$(mktemp -d)
+    git clone --depth 1 https://github.com/mosqlee/claw-cli.git "$tmp_dir/claw-cli" 2>&1 || {
+        rm -rf "$tmp_dir"
+        error "源码克隆失败，请检查网络"
+    }
+    (cd "$tmp_dir/claw-cli" && npm install --production 2>&1 && npx tsc 2>&1) || {
+        rm -rf "$tmp_dir"
+        error "源码构建失败"
+    }
 
-    error "所有安装方式均失败，请手动执行: npm install -g openclaw-claw"
+    local bin_dir="$HOME/.local/bin"
+    mkdir -p "$bin_dir"
+    ln -sf "$tmp_dir/claw-cli/dist/cli.js" "$bin_dir/claw"
+    chmod +x "$bin_dir/claw"
+    add_to_path "$bin_dir"
+    export PATH="$PATH:$bin_dir"
+    info "✅ 从源码安装成功 (claw → $bin_dir/claw)"
+    rm -rf "$tmp_dir"
 
     warn "npm 安装失败，尝试从源码安装..."
     local tmp_dir=$(mktemp -d)
