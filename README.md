@@ -8,11 +8,14 @@
 
 - 🔍 **搜索发现** — 从 Registry 搜索可用的 Skills 和 Agents
 - 📥 **一键安装** — `claw install <name>` 自动下载、部署、配置环境变量
+- 🚀 **自动部署** — 安装后自动部署到 `~/.openclaw/` 目录（Agent/Skill 分别部署）
 - 📤 **发布共享** — `claw publish <dir>` 将本地包发布到 Registry
 - 🧩 **Agent 管理** — 安装 Agent 角色模板，查看 SOUL.md 人设
 - 📦 **离线打包** — `claw pack` 创建 tarball，支持离线环境部署
+- 🔄 **自更新** — `claw update` 自动检测安装方式并更新 CLI
 - 🔐 **完整性校验** — SHA256 哈希验证已安装包的完整性
 - 🛠️ **环境自检** — 自动检测并引导配置环境变量
+- ✅ **测试覆盖** — 184 个单元/集成测试，覆盖所有核心模块
 
 ## 安装
 
@@ -57,6 +60,12 @@ claw list
 
 # 验证已安装包的完整性
 claw verify
+
+# 更新 claw CLI
+claw update
+
+# 仅检查是否有新版本
+claw update --check
 ```
 
 ## 命令参考
@@ -74,6 +83,7 @@ claw verify
 | `claw publish <source-dir> [--scope <scope>]` | 发布包到本地 Registry |
 | `claw pack <name> [--output <dir>]` | 将已安装的包打包为离线 tarball |
 | `claw install-pack <tarball>` | 从离线 tarball 安装包 |
+| `claw update [--check]` | 更新 claw CLI（`--check` 仅检查版本） |
 
 ### Agent 管理
 
@@ -154,6 +164,15 @@ my-skill/
 └── packages/              # 已安装的包
     ├── skill__findata-toolkit/
     └── agent__stock-analyst/
+
+~/.openclaw/               # OpenClaw 运行时目录（安装后自动部署）
+├── agents/
+│   └── stock-analyst/
+│       └── agent/         # Agent 完整包
+├── workspace/
+│   └── skills/
+│       └── findata-toolkit/  # Skill 完整包
+└── openclaw.json          # Agent 注册信息自动更新
 ```
 
 ## 离线部署
@@ -290,8 +309,11 @@ claw-cli/
 │   ├── packer.ts             # 离线打包/解包
 │   ├── config.ts             # 配置管理
 │   ├── scene.ts              # 场景管理
+│   ├── updater.ts           # CLI 自更新
 │   ├── utils.ts              # 工具函数
 │   └── types.ts              # TypeScript 类型
+├── src/*.test.ts            # 单元测试（164 tests）
+├── test-integration/        # 集成测试（20 tests）
 ├── skill/
 │   └── claw-cli-manager/     # OpenClaw Skill
 │       ├── SKILL.md          # Skill 定义（AI 触发词 + 命令映射）
@@ -300,6 +322,8 @@ claw-cli/
 │           └── setup_scene.sh   # 场景安装
 ├── test/
 │   └── utils.test.ts
+├── docs/
+│   └── superpowers/specs/   # 设计文档
 ├── package.json
 └── tsconfig.json
 ```
