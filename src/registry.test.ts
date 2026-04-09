@@ -47,7 +47,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     const ensuredDirs: string[] = [];
     _deps.ensureDir_ = async (dir: string) => { ensuredDirs.push(dir); };
     _deps.ensureDir = async () => {};
@@ -62,14 +62,14 @@ describe('publish', () => {
     expect(result!.name).toBe('my-skill');
     expect(result!.version).toBe('2.0.0');
     expect(result!.type).toBe('skill');
-    expect(ensuredDirs).toContain('/fake/registry/skill/my-skill');
+    expect(ensuredDirs).toContain('/fake/registry/skills/my-skill');
   });
 
   it('defaults scope to "skill" when no type field and no scope arg', async () => {
     const pkgData = { name: 'my-skill', version: '1.0.0' };
     _deps.readJson = async () => pkgData;
     let capturedScope = '';
-    _deps.pkgDir = (scope: string, name: string) => { capturedScope = scope; return `/fake/registry/${scope}/${name}`; };
+    _deps.pkgDir = (scope: string, name: string) => { capturedScope = scope; return `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`; };
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async () => false;
@@ -87,7 +87,7 @@ describe('publish', () => {
     const pkgData = { name: 'my-agent', version: '1.0.0' };
     _deps.readJson = async () => pkgData;
     let capturedScope = '';
-    _deps.pkgDir = (scope: string, name: string) => { capturedScope = scope; return `/fake/registry/${scope}/${name}`; };
+    _deps.pkgDir = (scope: string, name: string) => { capturedScope = scope; return `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`; };
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async () => false;
@@ -109,7 +109,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     const existingPaths = new Set([
@@ -140,7 +140,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async (p: string) => p === '/fake/source/scripts';
@@ -178,7 +178,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async () => false;
@@ -192,7 +192,7 @@ describe('publish', () => {
 
     await publish('/fake/source');
     // Should write .env.example to the dest directory
-    const envPath = path.join('/fake/registry/skill/my-skill', '.env.example');
+    const envPath = path.join('/fake/registry/skills/my-skill', '.env.example');
     expect(writtenFiles[envPath]).toBeDefined();
     expect(writtenFiles[envPath]).toContain('DATABASE_URL=');
   });
@@ -205,7 +205,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async () => false;
@@ -218,7 +218,7 @@ describe('publish', () => {
     _deps.scanSensitiveInfo = () => [{ type: 'secret' as const, varName: 'OPENAI_API_KEY', raw: 'sk-abcdef1234567890abcdef1234567890' }];
 
     await publish('/fake/source');
-    const envPath = path.join('/fake/registry/skill/my-skill', '.env.example');
+    const envPath = path.join('/fake/registry/skills/my-skill', '.env.example');
     expect(writtenFiles[envPath]).toBeDefined();
     expect(writtenFiles[envPath]).toContain('OPENAI_API_KEY=');
   });
@@ -231,7 +231,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     // Source .env.example exists
@@ -250,7 +250,7 @@ describe('publish', () => {
 
     await publish('/fake/source');
     // Should write to dest but NOT to source dir (already exists)
-    const destEnvPath = path.join('/fake/registry/skill/my-skill', '.env.example');
+    const destEnvPath = path.join('/fake/registry/skills/my-skill', '.env.example');
     expect(writtenFiles[destEnvPath]).toBeDefined();
     // Should merge existing and new vars
     expect(writtenFiles[destEnvPath]).toContain('EXISTING_VAR=');
@@ -267,7 +267,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async (p: string) => p === '/fake/source/SKILL.md';
@@ -282,7 +282,7 @@ describe('publish', () => {
     _deps.scanSensitiveInfo = () => [{ type: 'secret' as const, varName: 'OPENAI_API_KEY', raw: 'sk-abcdef1234567890abcdef1234567890' }];
 
     await publish('/fake/source');
-    const skillPath = path.join('/fake/registry/skill/my-skill', 'SKILL.md');
+    const skillPath = path.join('/fake/registry/skills/my-skill', 'SKILL.md');
     expect(writtenFiles[skillPath]).toContain('process.env.OPENAI_API_KEY');
     expect(writtenFiles[skillPath]).not.toContain('sk-abcdef1234567890abcdef1234567890');
   });
@@ -301,7 +301,7 @@ describe('publish', () => {
       if (readJsonCalls === 1) return pkgData;
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
     _deps.ensureDir_ = async () => {};
     _deps.ensureDir = async () => {};
     _deps.pathExists = async () => false;
@@ -327,7 +327,7 @@ describe('fetch_', () => {
       if (readJsonCalls === 1) return pkgData; // found in skill scope
       return null;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('my-skill');
     expect(result).not.toBeNull();
@@ -343,7 +343,7 @@ describe('fetch_', () => {
       if (readJsonCalls === 1) return null; // not in skill
       return pkgData; // found in agent
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('my-agent');
     expect(result).not.toBeNull();
@@ -358,7 +358,7 @@ describe('fetch_', () => {
       readJsonCalls++;
       return pkgData;
     };
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('my-skill', '1.2.3');
     expect(result).not.toBeNull();
@@ -368,7 +368,7 @@ describe('fetch_', () => {
   it('skips version mismatch and returns null', async () => {
     const pkgData = { name: 'my-skill', version: '1.0.0' };
     _deps.readJson = async () => pkgData;
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('my-skill', '2.0.0');
     expect(result).toBeNull();
@@ -376,7 +376,7 @@ describe('fetch_', () => {
 
   it('returns null when package not found in any scope', async () => {
     _deps.readJson = async () => null;
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('nonexistent');
     expect(result).toBeNull();
@@ -385,7 +385,7 @@ describe('fetch_', () => {
   it('treats version "latest" as no version filter', async () => {
     const pkgData = { name: 'my-skill', version: '5.0.0' };
     _deps.readJson = async () => pkgData;
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('my-skill', 'latest');
     expect(result).not.toBeNull();
@@ -395,7 +395,7 @@ describe('fetch_', () => {
   it('defaults version to 1.0.0 when not in package.json', async () => {
     const pkgData = { name: 'my-skill' };
     _deps.readJson = async () => pkgData;
-    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope}/${name}`;
+    _deps.pkgDir = (scope: string, name: string) => `/fake/registry/${scope === 'skill' ? 'skills' : 'agents'}/${name}`;
 
     const result = await fetch_('my-skill');
     expect(result).not.toBeNull();
@@ -407,7 +407,7 @@ describe('fetch_', () => {
 
 describe('search', () => {
   it('returns matching packages by name', async () => {
-    const scopeDir = '/fake/registry/skill';
+    const scopeDir = '/fake/registry/skills';
     _deps.registryDir = () => '/fake/registry';
     _deps.pathExists = async (p: string) => p === scopeDir;
     _deps.readdir = async () => ['my-skill', 'other-skill', 'unrelated'];

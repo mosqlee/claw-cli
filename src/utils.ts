@@ -144,7 +144,9 @@ export function shouldExclude(filename: string): boolean {
 }
 
 export function pkgDir(scope: string, name: string): string {
-  return path.join(REGISTRY_DIR, scope, name);
+  // Use plural directory names to match remote registry structure
+  const pluralScope = scope === 'skill' ? 'skills' : scope === 'agent' ? 'agents' : scope;
+  return path.join(REGISTRY_DIR, pluralScope, name);
 }
 
 export function installedDir(scope: string, name: string): string {

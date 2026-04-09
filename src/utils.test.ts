@@ -250,11 +250,18 @@ describe('copyDir', () => {
 // ── pkgDir / installedDir ──
 
 describe('pkgDir / installedDir', () => {
-  it('pkgDir joins registry/scope/name', () => {
+  it('pkgDir joins registry/skills/name for skill scope', () => {
     const result = pkgDir('skill', 'my-skill');
     expect(result).toContain('registry');
-    expect(result).toContain('skill');
+    expect(result).toContain('skills');
     expect(result).toContain('my-skill');
+  });
+
+  it('pkgDir joins registry/agents/name for agent scope', () => {
+    const result = pkgDir('agent', 'my-agent');
+    expect(result).toContain('registry');
+    expect(result).toContain('agents');
+    expect(result).toContain('my-agent');
   });
 
   it('installedDir joins packages/scope__name', () => {

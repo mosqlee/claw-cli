@@ -177,7 +177,8 @@ export async function search(query: string): Promise<SearchResult[]> {
   const queryLower = query.toLowerCase();
 
   for (const scope of ['skill', 'agent'] as const) {
-    const scopeDir = path.join(_deps.registryDir(), scope);
+    const pluralScope = scope === 'skill' ? 'skills' : 'agents';
+    const scopeDir = path.join(_deps.registryDir(), pluralScope);
     if (!(await _deps.pathExists(scopeDir))) continue;
 
     for (const name of (await _deps.readdir(scopeDir)) as unknown as string[]) {
@@ -282,22 +283,18 @@ export async function syncRegistry(): Promise<void> {
   const config = await _deps.getConfig();
   const registryUrl = config.registry || config.skillsRepo;
 
-  // Remote uses plural, local uses singular
-  const remoteToLocal: Record<string, string> = {
-    'skills': 'skill',
-    'agents': 'agent',
-    'scenes': 'scene',
-  };
+  // Remote and local now both use plural directory names
+  const subdirs = ['skills', 'agents', 'scenes'];
 
-  for (const [remoteSubdir, localSubdir] of Object.entries(remoteToLocal)) {
+  for (const subdir of subdirs) {
     const tmpDir = path.join(_deps.tmpdir(), `claw-sync-${Date.now()}`);
     try {
       await _deps.ensureDir(tmpDir);
       _deps.execSync(`git clone --depth 1 --filter=blob:none --sparse ${registryUrl} ${tmpDir}/repo 2>/dev/null`, { timeout: 60000 });
-      _deps.execSync(`cd ${tmpDir}/repo && git sparse-checkout set ${remoteSubdir} 2>/dev/null`, { timeout: 15000 });
+      _deps.execSync(`cd ${tmpDir}/repo && git sparse-checkout set ${subdir} 2>/dev/null`, { timeout: 15000 });
 
-      const src = path.join(tmpDir, 'repo', remoteSubdir);
-      const dst = path.join(_deps.registryDir(), localSubdir);
+      const src = path.join(tmpDir, 'repo', subdir);
+      const dst = path.join(_deps.registryDir(), subdir);
       if (await _deps.pathExists(src)) {
         await _deps.ensureDir_(dst);
         await _deps.copy(src, dst, { overwrite: true });

@@ -74,7 +74,7 @@ import path from 'path';
 
 // ── Helpers ──
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   // Default: installedDir returns a deterministic path
   mockUtils.installedDir.mockImplementation((scope: string, name: string) =>
     `/home/.claw_store/packages/${scope}__${name}`,
@@ -82,6 +82,9 @@ beforeEach(() => {
   mockUtils.pkgDir.mockImplementation((scope: string, name: string) =>
     `/home/.claw_store/registry/${scope}/${name}`,
   );
+  // Default: pathExists returns false, readdir returns empty (prevents test pollution)
+  mockFs.pathExists.mockImplementation(() => Promise.resolve(false));
+  mockFs.readdir.mockImplementation(() => Promise.resolve([]));
 });
 
 // ═══════════════════════════════════════════
@@ -315,16 +318,23 @@ describe('verify', () => {
       `/home/.claw_store/packages/${scope}__${name}`,
     );
 
-    // listInstalled needs baseDir + readdir + readJson
-    mockFs.pathExists.mockResolvedValueOnce(true); // baseDir exists
+    // Use mockImplementation to return correct values based on path
+    // This avoids the "once queue" ordering problem
+    mockFs.pathExists.mockImplementation(async (p: string) => {
+      // baseDir exists (contains 'packages' but no package name)
+      if (p === '/home/.claw_store/packages') return true;
+      // Installed dir exists
+      if (p === '/home/.claw_store/packages/skill__my-skill') return true;
+      // package.json exists
+      if (p.includes('package.json')) return true;
+      // SKILL.md exists
+      if (p.includes('SKILL.md')) return true;
+      // Everything else (OPENCLAW dirs, SOUL.md) returns false
+      return false;
+    });
+
     mockFs.readdir.mockResolvedValueOnce(['skill__my-skill']);
     mockUtils.readJson.mockResolvedValueOnce({ name: 'my-skill', version: '1.0.0' });
-
-    // verify checks: dir exists, package.json exists, SKILL.md exists
-    mockFs.pathExists
-      .mockResolvedValueOnce(true)   // installed dir exists
-      .mockResolvedValueOnce(true)   // package.json exists
-      .mockResolvedValueOnce(true);  // SKILL.md exists
 
     const results = await verify();
 
@@ -342,15 +352,16 @@ describe('verify', () => {
       `/home/.claw_store/packages/${scope}__${name}`,
     );
 
-    mockFs.pathExists.mockResolvedValueOnce(true); // baseDir
+    mockFs.pathExists.mockImplementation(async (p: string) => {
+      if (p === '/home/.claw_store/packages') return true;
+      if (p === '/home/.claw_store/packages/skill__broken') return true;
+      if (p.includes('package.json')) return true;
+      // SKILL.md and SOUL.md don't exist
+      return false;
+    });
+
     mockFs.readdir.mockResolvedValueOnce(['skill__broken']);
     mockUtils.readJson.mockResolvedValueOnce({ name: 'broken', version: '1.0.0' });
-
-    mockFs.pathExists
-      .mockResolvedValueOnce(true)    // installed dir exists
-      .mockResolvedValueOnce(true)    // package.json exists
-      .mockResolvedValueOnce(false)   // SKILL.md does NOT exist
-      .mockResolvedValueOnce(false);  // SOUL.md does NOT exist
 
     const results = await verify();
 
@@ -368,11 +379,14 @@ describe('verify', () => {
       `/home/.claw_store/packages/${scope}__${name}`,
     );
 
-    mockFs.pathExists.mockResolvedValueOnce(true); // baseDir
+    mockFs.pathExists.mockImplementation(async (p: string) => {
+      if (p === '/home/.claw_store/packages') return true;
+      // ghost package directory doesn't exist
+      return false;
+    });
+
     mockFs.readdir.mockResolvedValueOnce(['skill__ghost']);
     mockUtils.readJson.mockResolvedValueOnce({ name: 'ghost', version: '1.0.0' });
-
-    mockFs.pathExists.mockResolvedValueOnce(false); // installed dir does NOT exist
 
     const results = await verify();
 
