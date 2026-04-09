@@ -50,10 +50,10 @@ export async function install(pkgRef: string, projectDir?: string, scope?: 'skil
 // --- OpenClaw deployment functions ---
 
 async function deployAgentToOpenClaw(name: string, installedDir: string): Promise<void> {
-  const targetDir = path.join(OPENCLAW_AGENTS_DIR, name, 'agent');
+  const targetDir = path.join(OPENCLAW_AGENTS_DIR, name, 'workspace');
   await fs.ensureDir(targetDir);
   await fs.copy(installedDir, targetDir, { overwrite: true });
-  console.log(`  ✅ Deployed to ~/.openclaw/agents/${name}/agent/`);
+  console.log(`  ✅ Deployed to ~/.openclaw/agents/${name}/workspace/`);
 }
 
 async function deploySkillToOpenClaw(name: string, installedDir: string, targetAgent?: string): Promise<void> {
@@ -91,8 +91,8 @@ async function updateOpenClawConfig(name: string): Promise<void> {
   list.push({
     id: name,
     name: name,
-    workspace: path.join(OPENCLAW_DIR, `workspace-${name}`),
-    agentDir: path.join(OPENCLAW_AGENTS_DIR, name, 'agent'),
+    workspace: path.join(OPENCLAW_AGENTS_DIR, name, 'workspace'),
+    agentDir: path.join(OPENCLAW_AGENTS_DIR, name, 'workspace'),
     model: { primary: 'inherit' }
   });
 
@@ -208,25 +208,84 @@ export async function uninstall(name: string): Promise<void> {
 
 export async function listInstalled(): Promise<InstalledPackage[]> {
   const pkgs: InstalledPackage[] = [];
-  
+  const seen = new Set<string>();
+
+  // Check claw installed packages
   const baseDir = path.dirname(installedDir('skill', ''));
-  if (!(await fs.pathExists(baseDir))) return pkgs;
-  
-  for (const entry of await fs.readdir(baseDir)) {
-    if (!entry.includes('__')) continue;
-    const [scope, name] = entry.split('__') as ['skill' | 'agent', string];
-    const pkgPath = path.join(baseDir, entry, 'package.json');
-    const data = await readJson<Record<string, unknown>>(pkgPath);
-    if (data) {
-      pkgs.push({
-        name: data.name as string,
-        version: (data.version as string) || '1.0.0',
-        scope,
-        description: data.description as string,
-      });
+  if (await fs.pathExists(baseDir)) {
+    for (const entry of await fs.readdir(baseDir)) {
+      if (!entry.includes('__')) continue;
+      const [scope, name] = entry.split('__') as ['skill' | 'agent', string];
+      const pkgPath = path.join(baseDir, entry, 'package.json');
+      const data = await readJson<Record<string, unknown>>(pkgPath);
+      if (data) {
+        seen.add(`${scope}/${name}`);
+        pkgs.push({
+          name: data.name as string,
+          version: (data.version as string) || '1.0.0',
+          scope,
+          description: data.description as string,
+        });
+      }
     }
   }
-  
+
+  // Check OpenClaw agents directory
+  if (await fs.pathExists(OPENCLAW_AGENTS_DIR)) {
+    for (const entry of await fs.readdir(OPENCLAW_AGENTS_DIR)) {
+      if (seen.has(`agent/${entry}`)) continue;
+      const workspaceDir = path.join(OPENCLAW_AGENTS_DIR, entry, 'workspace');
+      const pkgPath = path.join(workspaceDir, 'package.json');
+      const data = await readJson<Record<string, unknown>>(pkgPath);
+      if (data) {
+        seen.add(`agent/${entry}`);
+        pkgs.push({
+          name: data.name as string || entry,
+          version: (data.version as string) || '1.0.0',
+          scope: 'agent',
+          description: data.description as string,
+        });
+      } else if (await fs.pathExists(workspaceDir)) {
+        // Agent exists but no package.json
+        seen.add(`agent/${entry}`);
+        pkgs.push({
+          name: entry,
+          version: '1.0.0',
+          scope: 'agent',
+          description: '(deployed to OpenClaw)',
+        });
+      }
+    }
+  }
+
+  // Check OpenClaw skills directory
+  if (await fs.pathExists(OPENCLAW_SKILLS_DIR)) {
+    for (const entry of await fs.readdir(OPENCLAW_SKILLS_DIR)) {
+      if (seen.has(`skill/${entry}`)) continue;
+      const skillDir = path.join(OPENCLAW_SKILLS_DIR, entry);
+      const pkgPath = path.join(skillDir, 'package.json');
+      const data = await readJson<Record<string, unknown>>(pkgPath);
+      if (data) {
+        seen.add(`skill/${entry}`);
+        pkgs.push({
+          name: data.name as string || entry,
+          version: (data.version as string) || '1.0.0',
+          scope: 'skill',
+          description: data.description as string,
+        });
+      } else if (await fs.pathExists(skillDir)) {
+        // Skill exists but no package.json
+        seen.add(`skill/${entry}`);
+        pkgs.push({
+          name: entry,
+          version: '1.0.0',
+          scope: 'skill',
+          description: '(deployed to OpenClaw)',
+        });
+      }
+    }
+  }
+
   return pkgs;
 }
 
@@ -262,10 +321,19 @@ export async function agentInstall(name: string, projectDir?: string): Promise<P
 }
 
 export async function agentSoul(name: string): Promise<string> {
-  const dir = installedDir('agent', name);
-  const soulPath = path.join(dir, 'SOUL.md');
-  if (await fs.pathExists(soulPath)) {
-    return await fs.readFile(soulPath, 'utf-8');
+  // Check installed directory first
+  const installedAgentDir = installedDir('agent', name);
+  const installedSoulPath = path.join(installedAgentDir, 'SOUL.md');
+  if (await fs.pathExists(installedSoulPath)) {
+    return await fs.readFile(installedSoulPath, 'utf-8');
   }
+
+  // Also check OpenClaw agents workspace directory
+  const openclawWorkspaceDir = path.join(OPENCLAW_AGENTS_DIR, name, 'workspace');
+  const openclawSoulPath = path.join(openclawWorkspaceDir, 'SOUL.md');
+  if (await fs.pathExists(openclawSoulPath)) {
+    return await fs.readFile(openclawSoulPath, 'utf-8');
+  }
+
   throw new Error(`Agent '${name}' has no SOUL.md`);
 }

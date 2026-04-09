@@ -1,6 +1,6 @@
 {
   "name": "openclaw-claw",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Claw Package Manager CLI - Node.js/TypeScript version",
   "type": "module",
   "bin": {

@@ -77,11 +77,12 @@ program
       }
       // Not found locally - try pulling registry first
       console.log('📦 Package not in local cache, pulling registry...');
-      const { syncRegistry } = await import('./registry.js');
       await syncRegistry();
       meta = await install(pkg, process.cwd());
       if (meta) {
         console.log(`✅ Installed ${meta.type}/${meta.name}@${meta.version}`);
+      } else {
+        console.log(`❌ Package '${pkg}' not found in registry`);
       }
     } catch (err) {
       console.error(`❌ ${(err as Error).message}`);
@@ -179,9 +180,19 @@ agentCmd
   .description('Install an agent')
   .action(async (name) => {
     try {
-      const meta = await agentInstall(name, process.cwd());
+      let meta = await agentInstall(name, process.cwd());
       if (meta) {
         console.log(`✅ Agent '${name}' v${meta.version} installed`);
+        return;
+      }
+      // Not found locally - try pulling registry first
+      console.log('📦 Agent not in local cache, pulling registry...');
+      await syncRegistry();
+      meta = await agentInstall(name, process.cwd());
+      if (meta) {
+        console.log(`✅ Agent '${name}' v${meta.version} installed`);
+      } else {
+        console.log(`❌ Agent '${name}' not found in registry`);
       }
     } catch (err) {
       console.error(`❌ ${(err as Error).message}`);

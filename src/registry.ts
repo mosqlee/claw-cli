@@ -81,8 +81,8 @@ export async function publish(sourceDir: string, scope?: 'skill' | 'agent'): Pro
   // Copy package.json (not excluded)
   await _deps.copy(pkgPath, path.join(dest, 'package.json'));
 
-  // Copy SKILL.md, SOUL.md, TOOLS.template.md, TOOLS.md (apply replacement)
-  for (const extra of ['SKILL.md', 'SOUL.md', 'TOOLS.template.md', 'TOOLS.md']) {
+  // Copy SKILL.md, SOUL.md, AGENTS.md, TOOLS.template.md, TOOLS.md (apply replacement)
+  for (const extra of ['SKILL.md', 'SOUL.md', 'AGENTS.md', 'TOOLS.template.md', 'TOOLS.md']) {
     const src = path.join(sourceDir, extra);
     if (await _deps.pathExists(src)) {
       await copyFileSecure(src, path.join(dest, extra));
