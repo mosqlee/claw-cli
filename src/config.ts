@@ -1,6 +1,7 @@
 // Configuration management
 
 import fs from 'fs-extra';
+import path from 'path';
 import { CONFIG_FILE, DEFAULT_CONFIG, ensureDir } from './utils.js';
 
 export type Config = typeof DEFAULT_CONFIG;
@@ -25,8 +26,10 @@ export async function getConfig(): Promise<Config> {
 export async function setConfig(key: string, value: string): Promise<void> {
   const config = await getConfig();
   (config as Record<string, unknown>)[key] = value;
-  await _deps.ensureDir(_deps.configFile());
-  await _deps.writeJson(_deps.configFile(), config, { spaces: 2 });
+  const configFile = _deps.configFile();
+  // Ensure parent directory exists, not the config file itself
+  await _deps.ensureDir(path.dirname(configFile));
+  await _deps.writeJson(configFile, config, { spaces: 2 });
 }
 
 export async function showConfig(): Promise<void> {

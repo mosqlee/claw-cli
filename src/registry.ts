@@ -3,6 +3,7 @@
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
+import { execSync } from 'child_process';
 import { PackageMeta, SearchResult } from './types.js';
 import {
   REGISTRY_DIR, pkgDir, ensureDir, readJson, writeJson, detectEnvVars,
@@ -32,10 +33,7 @@ export const _deps: Record<string, any> = { // eslint-disable-line @typescript-e
   scanSensitiveInfo: (content: string) => scanSensitiveInfo(content),
   replaceSensitiveInfo: (content: string, lang: 'js' | 'py' | 'sh' | 'md') => replaceSensitiveInfo(content, lang),
   detectLang: (fp: string) => detectLang(fp),
-  execSync: (cmd: string, opts?: object) => {
-    const { execSync } = require('child_process');
-    return execSync(cmd, opts);
-  },
+  execSync: (cmd: string, opts?: object) => execSync(cmd, opts),
   tmpdir: () => os.tmpdir(),
 };
 
@@ -305,7 +303,7 @@ export async function syncRegistry(): Promise<void> {
         await _deps.copy(src, dst, { overwrite: true });
       }
     } catch {
-      // Silently fail
+      // Silently fail - network errors, git not available, etc.
     } finally {
       await _deps.remove(tmpDir);
     }
