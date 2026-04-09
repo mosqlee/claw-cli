@@ -80,17 +80,35 @@ export async function publish(sourceDir: string, scope?: 'skill' | 'agent'): Pro
   await _deps.copy(pkgPath, path.join(dest, 'package.json'));
 
   // Copy SKILL.md, SOUL.md, AGENTS.md, TOOLS.template.md, TOOLS.md (apply replacement)
-  for (const extra of ['SKILL.md', 'SOUL.md', 'AGENTS.md', 'TOOLS.template.md', 'TOOLS.md']) {
-    const src = path.join(sourceDir, extra);
-    if (await _deps.pathExists(src)) {
-      await copyFileSecure(src, path.join(dest, extra));
+  // Check both root directory and workspace/ subdirectory (for agents)
+  const coreFiles = ['SKILL.md', 'SOUL.md', 'AGENTS.md', 'TOOLS.template.md', 'TOOLS.md'];
+  for (const extra of coreFiles) {
+    // Check root directory first
+    const srcRoot = path.join(sourceDir, extra);
+    if (await _deps.pathExists(srcRoot)) {
+      await copyFileSecure(srcRoot, path.join(dest, extra));
+    }
+    // For agents, also check workspace/ subdirectory
+    if (pkgScope === 'agent') {
+      const srcWorkspace = path.join(sourceDir, 'workspace', extra);
+      if (await _deps.pathExists(srcWorkspace)) {
+        await copyFileSecure(srcWorkspace, path.join(dest, 'workspace', extra));
+      }
     }
   }
 
   // Copy scripts directory (exclude sensitive files)
-  const scriptsDir = path.join(sourceDir, 'scripts');
-  if (await _deps.pathExists(scriptsDir)) {
-    await copyDirSecure(scriptsDir, path.join(dest, 'scripts'));
+  // Check both root directory and workspace/ subdirectory
+  const scriptsDirRoot = path.join(sourceDir, 'scripts');
+  if (await _deps.pathExists(scriptsDirRoot)) {
+    await copyDirSecure(scriptsDirRoot, path.join(dest, 'scripts'));
+  }
+  // For agents, also copy workspace/scripts
+  if (pkgScope === 'agent') {
+    const scriptsDirWorkspace = path.join(sourceDir, 'workspace', 'scripts');
+    if (await _deps.pathExists(scriptsDirWorkspace)) {
+      await copyDirSecure(scriptsDirWorkspace, path.join(dest, 'workspace', 'scripts'));
+    }
   }
 
   // Scan ALL files for env vars and secrets, generate .env.example
